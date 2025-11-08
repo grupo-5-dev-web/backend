@@ -1,0 +1,113 @@
+version: "3.9"
+
+services:
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: nginx-gateway
+    ports:
+      - "8000:80"
+    depends_on:
+      - user
+      - tenant
+      - resource
+      - reservation
+    networks:
+      - backend_net
+
+  user:
+    build: ./user
+    expose:
+      - "8000"
+    container_name: user
+    environment:
+      - DATABASE_URL=postgresql://user:password@db_user:5432/userdb
+    depends_on:
+      - db_user
+    networks:
+      - backend_net
+
+  tenant:
+    build: ./tenant
+    expose:
+      - "8000"
+    container_name: tenant
+    environment:
+      - DATABASE_URL=postgresql://user:password@db_tenant:5432/tenantdb
+    depends_on:
+      - db_tenant
+    networks:
+      - backend_net
+
+  resource:
+    build: ./resource
+    expose:
+      - "8000"
+    container_name: resource
+    environment:
+      - DATABASE_URL=postgresql://user:password@db_resource:5432/resourcedb
+    depends_on:
+      - db_resource
+    networks:
+      - backend_net
+
+  reservation:
+    build: ./reservation
+    expose:
+      - "8000"
+    container_name: reservation
+    environment:
+      - DATABASE_URL=postgresql://user:password@db_reservation:5432/reservationdb
+    depends_on:
+      - db_reservation
+    networks:
+      - backend_net
+
+  db_user:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: userdb
+    networks:
+      - backend_net
+
+  db_tenant:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: tenantdb
+    networks:
+      - backend_net
+
+  db_resource:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: resourcedb
+    networks:
+      - backend_net
+
+  db_reservation:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: reservationdb
+    networks:
+      - backend_net
+
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - backend_net
+
+networks:
+  backend_net:
+    driver: bridge
