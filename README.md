@@ -105,8 +105,33 @@ docker compose up --build   # rebuild rápido quando muda requirements/Dockerfil
 7. Repita o processo para cada microserviço em portas diferentes caso queira o ecossistema completo.
 
 ### TODO
-- Implementar consumidores para os eventos publicados no Redis (ex.: notificações, faturamento, audit trail).
-- Adicionar autenticação/autorização centralizada (JWT + scopes) e propagar identidade do usuário entre serviços.
-- Expandir endpoints de relatórios/analytics aplicando as mesmas políticas de agenda do tenant.
-- Criar testes de integração entre serviços validando disponibilidade + reserva em tempo real.
-- Automatizar lint/CI com execução de testes e verificação de segurança.
+
+#### 🔴 Segurança e Infraestrutura
+- [ ] **Hash seguro de senhas**: Substituir implementação placeholder em `user/app/routers/crud.py` por `passlib[bcrypt]` ou `argon2-cffi`.
+- [ ] **Variáveis de ambiente**: Extrair credenciais hardcoded do `docker-compose.yml` para `.env` (postgres passwords, redis).
+- [ ] **Rate limiting**: Configurar limites por IP/tenant no Nginx usando `limit_req_zone` e `limit_req`.
+- [ ] **CORS configurável**: Adicionar configuração de CORS por ambiente (dev permite `*`, prod restringe domínios).
+
+#### 🟡 Observabilidade e Qualidade
+- [ ] **Health checks em serviços**: Adicionar endpoints `/health` e `/ready` em cada FastAPI app para monitoramento Docker/Kubernetes.
+- [ ] **Logging estruturado**: Padronizar logs JSON com contexto (tenant_id, request_id, trace_id) usando `structlog` ou `python-json-logger`.
+- [ ] **Métricas (Prometheus)**: Expor `/metrics` com contadores de requests, latências e erros via `prometheus-fastapi-instrumentator`.
+- [ ] **Testes de integração**: Criar suíte validando fluxo completo (tenant settings → disponibilidade → criação de booking com conflitos).
+- [ ] **Coverage reports**: Configurar `pytest-cov` para gerar relatórios HTML e manter cobertura acima de 80%.
+- [ ] **Lint e formatação**: Adicionar `ruff` ou `black + isort + flake8` em pre-commit hooks e CI.
+
+#### 🟢 Funcionalidades e Evolução
+- [ ] **Consumidores de eventos**: Implementar workers para processar Redis Streams (notificações por email/SMS, webhooks, audit trail).
+- [ ] **Autenticação centralizada**: Adicionar serviço de auth com JWT (access + refresh tokens), scopes por tenant e middleware de validação.
+- [ ] **Cache Redis**: Cachear `OrganizationSettings` e disponibilidade de recursos com TTL configurável.
+- [ ] **Recurring bookings**: Implementar lógica de recorrência usando `recurring_pattern` (diário, semanal, mensal).
+- [ ] **Relatórios e analytics**: Endpoints de estatísticas (taxa de ocupação, bookings por categoria, cancelamentos) respeitando políticas do tenant.
+- [ ] **Webhooks configuráveis**: Permitir tenants registrarem URLs para receber notificações de eventos (booking.created, booking.cancelled).
+- [ ] **Soft delete aprimorado**: Unificar estratégia de exclusão lógica (usar `deleted_at` timestamp em vez de múltiplos `is_active`).
+
+#### 🛠️ Melhorias Técnicas
+- [ ] **Requirements files**: Criar `requirements.txt` por serviço (substituir `RUN pip install` inline nos Dockerfiles).
+- [ ] **Database migrations CLI**: Script helper para rodar todas as migrações de uma vez (`./migrate.sh all` ou `make migrate`).
+- [ ] **Documentação de arquitetura**: Adicionar diagramas (C4, sequence) mostrando comunicação entre serviços e fluxo de eventos.
+- [ ] **Error handling padronizado**: Criar middleware global para transformar exceções em respostas JSON consistentes com trace_id.
+- [ ] **Dependency injection avançada**: Avaliar uso de `dependency-injector` para gerenciar settings providers e clientes externos.
