@@ -3,7 +3,7 @@ version: "3.9"
 services:
   nginx:
     build:
-      context: ./nginx
+      context: ./infra/nginx
       dockerfile: Dockerfile
     container_name: nginx-gateway
     ports:
@@ -17,52 +17,75 @@ services:
       - backend_net
 
   user:
-    build: ./user
+    build:
+      context: .
+      dockerfile: services/user/Dockerfile
     expose:
       - "8000"
     container_name: user
     environment:
       - DATABASE_URL=postgresql://user:password@db_user:5432/userdb
+      - APP_ROOT_PATH=/users
     depends_on:
-      - db_user
+      db_user:
+        condition: service_healthy
     networks:
       - backend_net
+    command: ["/bin/sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
 
   tenant:
-    build: ./tenant
+    build:
+      context: .
+      dockerfile: services/tenant/Dockerfile
     expose:
       - "8000"
     container_name: tenant
     environment:
       - DATABASE_URL=postgresql://user:password@db_tenant:5432/tenantdb
+      - APP_ROOT_PATH=/tenants
     depends_on:
-      - db_tenant
+      db_tenant:
+        condition: service_healthy
     networks:
       - backend_net
+    command: ["/bin/sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
 
   resource:
-    build: ./resource
+    build:
+      context: .
+      dockerfile: services/resource/Dockerfile
     expose:
       - "8000"
     container_name: resource
     environment:
       - DATABASE_URL=postgresql://user:password@db_resource:5432/resourcedb
+      - APP_ROOT_PATH=/resources
+      - TENANT_SERVICE_URL=http://tenant:8000/tenants
+      - RESERVATION_SERVICE_URL=http://reservation:8000/reservations
     depends_on:
-      - db_resource
+      db_resource:
+        condition: service_healthy
     networks:
       - backend_net
+    command: ["/bin/sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
 
   reservation:
-    build: ./reservation
+    build:
+      context: .
+      dockerfile: services/reservation/Dockerfile
     expose:
       - "8000"
     container_name: reservation
     environment:
       - DATABASE_URL=postgresql://user:password@db_reservation:5432/reservationdb
+      - APP_ROOT_PATH=/reservations
+      - TENANT_SERVICE_URL=http://tenant:8000/tenants
     depends_on:
-      - db_reservation
+      db_reservation:
+        condition: service_healthy
     networks:
       - backend_net
+    command: ["/bin/sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
 
   db_user:
     image: postgres:15
@@ -70,6 +93,12 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: userdb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d userdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
     networks:
       - backend_net
 
@@ -79,6 +108,12 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: tenantdb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d tenantdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
     networks:
       - backend_net
 
@@ -88,6 +123,12 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: resourcedb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d resourcedb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
     networks:
       - backend_net
 
@@ -97,6 +138,12 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: reservationdb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d reservationdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
     networks:
       - backend_net
 
