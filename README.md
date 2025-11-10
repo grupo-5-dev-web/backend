@@ -1,3 +1,5 @@
+TESTE
+
 ## White Label Resource Scheduling Platform – Backend
 
 A plataforma permite que diferentes negócios configurem regras próprias de agendamento (recursos humanos, equipamentos ou espaços) utilizando a mesma base white label. O backend foi estruturado como um conjunto de microsserviços FastAPI multi-tenant, com regras configuráveis por organização e propagação de eventos.
