@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Dict, Optional
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_serializer, model_validator
 
 
 class Permissions(BaseModel):
@@ -9,6 +9,13 @@ class Permissions(BaseModel):
     can_manage_resources: bool = False
     can_manage_users: bool = False
     can_view_all_bookings: bool = False
+
+
+def _ensure_profile_metadata(data):
+    if isinstance(data, dict) and "metadata" in data and "profile_metadata" not in data:
+        data = dict(data)
+        data["profile_metadata"] = data.pop("metadata")
+    return data
 
 
 class UserBase(BaseModel):
@@ -20,7 +27,18 @@ class UserBase(BaseModel):
     department: Optional[str] = None
     is_active: bool = True
     permissions: Permissions = Permissions()
-    profile_metadata: Dict[str, Any] = Field(default_factory=dict, alias="metadata")
+    profile_metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _consume_metadata_alias(cls, data):
+        return _ensure_profile_metadata(data)
+
+    @model_serializer(mode="wrap")
+    def _serialize_metadata(self, handler):
+        payload = handler(self)
+        payload["metadata"] = payload.pop("profile_metadata", {})
+        return payload
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -37,10 +55,15 @@ class UserUpdate(BaseModel):
     department: Optional[str] = None
     is_active: Optional[bool] = None
     permissions: Optional[Permissions] = None
-    profile_metadata: Optional[Dict[str, Any]] = Field(default=None, alias="metadata")
+    profile_metadata: Optional[Dict[str, Any]] = None
     password: Optional[str] = Field(default=None, min_length=8)
 
     model_config = ConfigDict(populate_by_name=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _consume_metadata_alias(cls, data):
+        return _ensure_profile_metadata(data)
 
 
 class UserOut(UserBase):

@@ -7,8 +7,10 @@ WORKDIR /srv
 
 COPY services/shared /srv/shared
 COPY services/reservation/app /srv/reservation/app
+COPY services/reservation/alembic.ini /srv/reservation/alembic.ini
+COPY services/reservation/alembic /srv/reservation/alembic
 
-RUN pip install --no-cache-dir fastapi uvicorn psycopg2-binary sqlalchemy redis python-dotenv email-validator
+RUN pip install --no-cache-dir fastapi uvicorn psycopg2-binary sqlalchemy redis python-dotenv email-validator alembic httpx
 
 ENV PYTHONPATH="/srv:/srv/reservation"
 

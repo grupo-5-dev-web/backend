@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional, Dict, Any
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
@@ -82,3 +82,16 @@ class ResourceOut(ResourceBase):
     category: Optional[ResourceCategoryOut] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AvailabilitySlotOut(BaseModel):
+    start_time: datetime
+    end_time: datetime
+
+
+class ResourceAvailabilityResponse(BaseModel):
+    resource_id: UUID
+    tenant_id: UUID
+    date: date
+    timezone: str
+    slots: list[AvailabilitySlotOut]

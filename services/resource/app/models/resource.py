@@ -6,6 +6,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    JSON,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
@@ -24,7 +25,12 @@ class ResourceCategory(Base):
     icon = Column(String, nullable=True)
     color = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
-    category_metadata = Column("metadata", JSONB, nullable=False, default=dict)
+    category_metadata = Column(
+        "metadata",
+        JSONB().with_variant(JSON, "sqlite"),
+        nullable=False,
+        default=dict,
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -42,8 +48,12 @@ class Resource(Base):
     status = Column(String, nullable=False, default="disponivel")
     capacity = Column(Integer, nullable=True)
     location = Column(String, nullable=True)
-    attributes = Column(JSONB, nullable=False, default=dict)
-    availability_schedule = Column(JSONB, nullable=False, default=dict)
+    attributes = Column(JSONB().with_variant(JSON, "sqlite"), nullable=False, default=dict)
+    availability_schedule = Column(
+        JSONB().with_variant(JSON, "sqlite"),
+        nullable=False,
+        default=dict,
+    )
     image_url = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

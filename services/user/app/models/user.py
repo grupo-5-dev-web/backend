@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Boolean, Column, DateTime, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, String, UniqueConstraint, JSON
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -29,7 +29,7 @@ class User(Base):
     user_type = Column(String, nullable=False)
     department = Column(String, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
-    permissions = Column(JSONB, nullable=False, default=default_permissions)
-    profile_metadata = Column(JSONB, nullable=False, default=dict)
+    permissions = Column(JSONB().with_variant(JSON, "sqlite"), nullable=False, default=default_permissions)
+    profile_metadata = Column(JSONB().with_variant(JSON, "sqlite"), nullable=False, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

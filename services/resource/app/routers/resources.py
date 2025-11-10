@@ -1,9 +1,16 @@
+from datetime import date
 from typing import List, Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.schemas.resource_schema import ResourceCreate, ResourceOut, ResourceUpdate
+from app.schemas.resource_schema import (
+    ResourceAvailabilityResponse,
+    ResourceCreate,
+    ResourceOut,
+    ResourceUpdate,
+)
+from app.services.availability import compute_availability
 from . import crud
 
 router = APIRouter(prefix="/resources", tags=["Resources"])
@@ -54,3 +61,24 @@ def deletar_recurso(recurso_id: UUID, db: Session = Depends(get_db)):
     if not recurso:
         raise HTTPException(status_code=404, detail="Recurso não encontrado")
     return None
+
+
+@router.get("/{recurso_id}/availability", response_model=ResourceAvailabilityResponse)
+def consultar_disponibilidade(
+    recurso_id: UUID,
+    request: Request,
+    data: str = Query(..., description="Data da consulta no formato YYYY-MM-DD"),
+    db: Session = Depends(get_db),
+):
+    try:
+        target_date = date.fromisoformat(data)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Data inválida. Use o formato YYYY-MM-DD.") from exc
+
+    result = compute_availability(
+        app_state=request.app.state,
+        db_session=db,
+        resource_id=recurso_id,
+        target_date=target_date,
+    )
+    return result

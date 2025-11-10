@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, String, Text, JSON
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -33,7 +33,7 @@ class Booking(Base):
     confirmation_code = Column(String, nullable=True, unique=True)
 
     recurring_enabled = Column(Boolean, default=False)
-    recurring_pattern = Column(JSONB, nullable=True)
+    recurring_pattern = Column(JSONB().with_variant(JSON, "sqlite"), nullable=True)
 
     cancellation_reason = Column(Text, nullable=True)
     cancelled_at = Column(DateTime(timezone=True), nullable=True)
@@ -50,5 +50,5 @@ class BookingEvent(Base):
     booking_id = Column(UUID(as_uuid=True), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False, index=True)
     tenant_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     event_type = Column(String, nullable=False)
-    payload = Column(JSONB, nullable=False, default=dict)
+    payload = Column(JSONB().with_variant(JSON, "sqlite"), nullable=False, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

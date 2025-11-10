@@ -115,3 +115,7 @@ class BookingConflictResponse(BaseModel):
     error: str
     message: str
     conflicts: list[BookingConflict]
+
+
+class BookingWithPolicy(BookingOut):
+    can_cancel: bool

@@ -13,6 +13,13 @@ from app.schemas.booking_schema import (
     BookingCreate,
     BookingOut,
     BookingUpdate,
+    BookingWithPolicy,
+)
+from app.services.organization import (
+    resolve_settings_provider,
+    validate_booking_window,
+    validate_cancellation_window,
+    can_cancel_booking,
 )
 from . import crud
 
@@ -29,12 +36,29 @@ def _parse_iso_datetime(value: Optional[str], field_name: str) -> Optional[datet
         raise HTTPException(status_code=400, detail=f"{field_name} inválido") from exc
 
 
-@router.post("/", response_model=BookingOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=BookingOut,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Violação das regras de agendamento (horário, antecedência, intervalo).",
+        },
+        status.HTTP_409_CONFLICT: {
+            "model": BookingConflictResponse,
+            "description": "Conflito com outro agendamento do mesmo recurso.",
+        },
+    },
+)
 def create_booking_endpoint(
     payload: BookingCreate,
     request: Request,
     db: Session = Depends(get_db),
 ):
+    settings_provider = resolve_settings_provider(request.app.state)
+    settings = settings_provider(payload.tenant_id)
+    validate_booking_window(payload.start_time, payload.end_time, settings)
+
     conflicts = crud.find_conflicts(
         db,
         payload.tenant_id,
@@ -56,15 +80,19 @@ def create_booking_endpoint(
                 for booking in conflicts
             ],
         )
-        return JSONResponse(status_code=status.HTTP_409_CONFLICT, content=conflict_payload.model_dump())
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content=conflict_payload.model_dump(mode="json"),
+        )
 
     publisher = getattr(request.app.state, "event_publisher", None)
     booking = crud.create_booking(db, payload, publisher=publisher)
     return booking
 
 
-@router.get("/", response_model=List[BookingOut])
+@router.get("/", response_model=List[BookingWithPolicy])
 def list_bookings_endpoint(
+    request: Request,
     tenant_id: UUID = Query(...),
     resource_id: Optional[UUID] = Query(default=None),
     user_id: Optional[UUID] = Query(default=None),
@@ -88,7 +116,16 @@ def list_bookings_endpoint(
         start_date=start_dt,
         end_date=end_dt,
     )
-    return bookings
+    settings_provider = resolve_settings_provider(request.app.state)
+    settings = settings_provider(tenant_id)
+
+    enriched: List[BookingWithPolicy] = []
+    for item in bookings:
+        base_data = BookingOut.model_validate(item).model_dump(mode="python")
+        enriched.append(
+            BookingWithPolicy(**base_data, can_cancel=can_cancel_booking(item.start_time, settings))
+        )
+    return enriched
 
 
 @router.get("/{booking_id}", response_model=BookingOut)
@@ -99,7 +136,22 @@ def get_booking_endpoint(booking_id: UUID, db: Session = Depends(get_db)):
     return booking
 
 
-@router.put("/{booking_id}", response_model=BookingOut)
+@router.put(
+    "/{booking_id}",
+    response_model=BookingOut,
+    responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Violação das regras de agendamento (horário, antecedência, intervalo).",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Agendamento não encontrado.",
+        },
+        status.HTTP_409_CONFLICT: {
+            "model": BookingConflictResponse,
+            "description": "Conflito com outro agendamento do mesmo recurso.",
+        },
+    },
+)
 def update_booking_endpoint(
     booking_id: UUID,
     payload: BookingUpdate,
@@ -110,13 +162,21 @@ def update_booking_endpoint(
     if not booking:
         raise HTTPException(status_code=404, detail="Agendamento não encontrado")
 
-    if payload.start_time and payload.end_time:
+    settings_provider = resolve_settings_provider(request.app.state)
+    settings = settings_provider(booking.tenant_id)
+
+    new_start = payload.start_time or booking.start_time
+    new_end = payload.end_time or booking.end_time
+
+    if payload.start_time or payload.end_time or payload.resource_id:
+        validate_booking_window(new_start, new_end, settings)
+
         conflicts = crud.find_conflicts(
             db,
             booking.tenant_id,
             payload.resource_id or booking.resource_id,
-            payload.start_time,
-            payload.end_time,
+            new_start,
+            new_end,
             ignore_booking_id=booking_id,
         )
         if conflicts:
@@ -133,14 +193,28 @@ def update_booking_endpoint(
                     for item in conflicts
                 ],
             )
-            return JSONResponse(status_code=status.HTTP_409_CONFLICT, content=conflict_payload.model_dump())
+            return JSONResponse(
+                status_code=status.HTTP_409_CONFLICT,
+                content=conflict_payload.model_dump(mode="json"),
+            )
 
     publisher = getattr(request.app.state, "event_publisher", None)
     updated_booking = crud.update_booking(db, booking_id, payload, publisher=publisher)
     return updated_booking
 
 
-@router.patch("/{booking_id}/cancel", response_model=BookingOut)
+@router.patch(
+    "/{booking_id}/cancel",
+    response_model=BookingOut,
+    responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Cancelamento fora da janela permitida.",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Agendamento não encontrado.",
+        },
+    },
+)
 def cancel_booking_endpoint(
     booking_id: UUID,
     cancel_payload: BookingCancelRequest,
@@ -148,14 +222,33 @@ def cancel_booking_endpoint(
     cancelled_by: UUID = Query(..., description="Usuário responsável pelo cancelamento"),
     db: Session = Depends(get_db),
 ):
-    publisher = getattr(request.app.state, "event_publisher", None)
-    booking = crud.cancel_booking(db, booking_id, cancelled_by, cancel_payload.reason, publisher=publisher)
+    booking = crud.get_booking(db, booking_id)
     if not booking:
         raise HTTPException(status_code=404, detail="Agendamento não encontrado")
-    return booking
+
+    settings_provider = resolve_settings_provider(request.app.state)
+    settings = settings_provider(booking.tenant_id)
+    validate_cancellation_window(booking.start_time, settings)
+
+    publisher = getattr(request.app.state, "event_publisher", None)
+    cancelled = crud.cancel_booking(db, booking_id, cancelled_by, cancel_payload.reason, publisher=publisher)
+    if not cancelled:
+        raise HTTPException(status_code=404, detail="Agendamento não encontrado")
+    return cancelled
 
 
-@router.patch("/{booking_id}/status", response_model=BookingOut)
+@router.patch(
+    "/{booking_id}/status",
+    response_model=BookingOut,
+    responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Status fornecido é inválido.",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Agendamento não encontrado.",
+        },
+    },
+)
 def update_status_endpoint(
     booking_id: UUID,
     request: Request,

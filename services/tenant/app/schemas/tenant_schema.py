@@ -1,6 +1,6 @@
 from datetime import time, datetime
 from uuid import UUID
-from typing import Optional
+from typing import Optional, Self
 from pydantic import BaseModel, HttpUrl, ConfigDict, Field, field_validator, model_validator
 
 
@@ -22,10 +22,10 @@ class OrganizationSettingsBase(BaseModel):
     custom_labels: CustomLabels
 
     @model_validator(mode="after")
-    def validar_horarios(cls, model):
-        if model.working_hours_start >= model.working_hours_end:
+    def validar_horarios(self) -> Self:
+        if self.working_hours_start >= self.working_hours_end:
             raise ValueError("working_hours_start deve ser menor que working_hours_end")
-        return model
+        return self
 
 
 class OrganizationSettingsCreate(OrganizationSettingsBase):
@@ -42,14 +42,14 @@ class OrganizationSettingsUpdate(BaseModel):
     custom_labels: Optional[CustomLabels] = None
 
     @model_validator(mode="after")
-    def validar_horarios(cls, model):
+    def validar_horarios(self) -> Self:
         if (
-            model.working_hours_start
-            and model.working_hours_end
-            and model.working_hours_start >= model.working_hours_end
+            self.working_hours_start
+            and self.working_hours_end
+            and self.working_hours_start >= self.working_hours_end
         ):
             raise ValueError("working_hours_start deve ser menor que working_hours_end")
-        return model
+        return self
 
 
 class OrganizationSettingsOut(OrganizationSettingsBase):

@@ -1,13 +1,14 @@
 ## White Label Resource Scheduling Platform – Backend
 
-A plataforma permite que diferentes negócios configurem regras próprias de agendamento (recursos humanos, equipamentos ou espaços) utilizando a mesma base white label. O backend está sendo estruturado para suportar multi-tenant, regras configuráveis por organização e propagação de eventos para outros domínios interessados.
+A plataforma permite que diferentes negócios configurem regras próprias de agendamento (recursos humanos, equipamentos ou espaços) utilizando a mesma base white label. O backend foi estruturado como um conjunto de microsserviços FastAPI multi-tenant, com regras configuráveis por organização e propagação de eventos.
 
 ### Stack e diretrizes
-- Python 3.11 + FastAPI (serviços leves e independentes)
-- SQLAlchemy + PostgreSQL (cada contexto com banco dedicado e JSONB para campos flexíveis)
-- Redis (fila/transporte inicial para eventos de reserva; pode evoluir para Kafka)
-- Nginx como gateway/reverso proxy e roteador de serviços
-- Conteinerização via Docker e orquestração local com `docker compose`
+- Python 3.11 + FastAPI em cada serviço
+- SQLAlchemy + PostgreSQL (um banco por domínio, suporte a JSONB)
+- Alembic por serviço para migrações independentes
+- Redis Streams para publicação de eventos (pode evoluir para Kafka)
+- Docker Compose para orquestração local
+- Nginx como gateway reverso e landing page de documentação
 
 ### Estrutura do repositório
 ```text
@@ -15,55 +16,97 @@ backend/
 ├── docker-compose.yml
 ├── infra/
 │   └── nginx/
+│       ├── Dockerfile
+│       ├── nginx.conf
+│       └── html/
+│           └── index.html
 └── services/
-	├── shared/
-	├── reservation/
-	├── resource/
-	├── tenant/
-	└── user/
+    ├── shared/
+    ├── tenant/
+    ├── resource/
+    ├── reservation/
+    └── user/
 ```
-- `services/shared`: utilidades comuns (configuração centralizada, mensageria) copiadas para todos os contêineres.
-- `services/*`: cada serviço FastAPI isolado, com seu `Dockerfile` e a pasta `app/` contendo camadas (`core`, `models`, `routers`, `schemas`).
-- `infra/nginx`: reverse proxy que concentra a exposição pública e roteia chamadas para os serviços internos.
-- `docker-compose.yml`: orquestra os serviços de aplicação, bancos PostgreSQL por domínio e serviços de suporte.
+- `services/shared`: utilidades comuns (config, mensageria, helpers de startup) copiadas para cada container.
+- `services/<service>`: código FastAPI isolado, com pastas `core`, `models`, `routers`, `schemas` e testes.
+- `infra/nginx`: gateway que expõe os serviços e disponibiliza uma landing page com links de Swagger.
 
-> Para executar serviços localmente sem Docker, exporte `PYTHONPATH="$(pwd)/services/shared:$(pwd)/services/<serviço>"` antes de iniciar o `uvicorn`, garantindo que o pacote `shared` seja encontrado.
+> Execução local sem Docker: exporte `PYTHONPATH="$(pwd)/services/shared:$(pwd)/services/<serviço>"` e rode `uvicorn app.main:app --reload` dentro da pasta do serviço.
+
+### Landing page e documentação
+- `http://localhost:8000/` (gateway) exibe uma página com links para os Swagger UI de cada serviço.
+- Serviços expõem documentação em:
+	- `http://localhost:8000/tenants/docs`
+	- `http://localhost:8000/resources/docs`
+	- `http://localhost:8000/users/docs`
+	- `http://localhost:8000/reservations/docs`
+- Cada endpoint de reserva documenta respostas de erro (400/409) alinhadas às regras de negócio de agendamento.
 
 ### Serviços e responsabilidades
-- `tenant`: gerencia configurações da organização e metadados white label (nome, domínio, identidade visual, labels customizadas, regras de agendamento padrão).
-- `resource`: mantém categorias, recursos físicos/humanos/software e disponibilidade de cada item.
-- `user`: guarda perfis, permissões e metadados dependentes do tipo de negócio (admin, manager, professional, client).
-- `reservation`: centraliza políticas de booking, recorrência, conflitos, cancelamentos e emite eventos para interessadas (notificações, billing, BI).
+- **tenant**: gerenciamento de tenants, configurações (`OrganizationSettings`), labels customizadas, comunicação com outros domínios.
+- **resource**: categorias, recursos, disponibilidade diária (`availability_schedule`) e atributos dinâmicos.
+- **user**: perfis multi-tenant, papéis e permissões.
+- **reservation**: criação/atualização/cancelamento de bookings com validações baseadas nas configurações do tenant (horário comercial, antecedência, intervalo, janela de cancelamento) e emissão de eventos em Redis Streams.
 
-Cada serviço expõe documentação interativa no endereço padrão do container (`/docs` via Swagger UI e `/redoc`). Quando executados pelo `nginx` local, os prefixos externos ficam:
-- `GET http://localhost:8000/tenants/docs`
-- `GET http://localhost:8000/resources/docs`
-- `GET http://localhost:8000/users/docs`
-- `GET http://localhost:8000/reservations/docs`
+### Fluxos implementados
+- **Regras de agendamento**: provider compartilhado (`services/shared/organization.py`) recupera `OrganizationSettings` do serviço de tenant (HTTP via `httpx`) ou usa defaults. CRUD de bookings verifica horário útil, antecipação máxima, duração múltipla do intervalo e janela de cancelamento.
+- **Política de cancelamento**: listagens de reservas (`GET /reservations/bookings/`) incluem `can_cancel` calculado dinamicamente, refletindo a janela configurada pelo tenant.
+- **Disponibilidade de recursos**: `GET /resources/{id}/availability` monta slots alinhados ao expediente e intervalo do tenant, consulta o serviço de reservas via `RESERVATION_SERVICE_URL` para bloquear conflitos e responde com timezone normalizado.
+- **Eventos de reserva**: toda mudança (`booking.created`, `booking.updated`, `booking.cancelled`, `booking.status_changed`) vai para o Redis Stream definido em `shared.EventPublisher`, viabilizando consumidores assíncronos (notificações, analytics, billing).
+- **Landing page unificada**: gateway Nginx serve `http://localhost:8000/` com atalhos para a documentação Swagger de cada serviço.
 
-### Modelagem e alinhamento ao diagrama UML
-- `organization_settings`: consolidar timezone, horários úteis, intervalos mínimos, limites de antecedência e rótulos customizados.
-- `resource_categories` → `resources`: manter metadados flexíveis (`metadata`/`attributes`) e horários por recurso (`availability_schedule`).
-- `users`: perfil, permissões agregadas e campos específicos por tipo de tenant.
-- `bookings`: assegurar validações de conflito, janelas comerciais e cancelamentos (campos de auditoria e recorrência).
-- Recomenda-se criar tabelas auxiliares para auditoria/event sourcing (por exemplo `booking_events`) e vincular histórico de alterações relevantes.
+### Testes automatizados
+- `pytest` configurado para cada serviço com bancos SQLite isolados.
+- Reservas: ciclo completo, conflitos, validações de horário, janelas de cancelamento e flag `can_cancel`.
+- Recursos: fluxo CRUD e cálculo de disponibilidade (incluindo datas passadas e alinhamento de intervalos).
+- Executar toda a suíte: `.venv/bin/pytest`
+- Executar apenas reservas: `.venv/bin/pytest services/reservation/tests`
+- Executar apenas recursos: `.venv/bin/pytest services/resource/tests`
 
-### Eventos e escalabilidade
-- Reservas geram eventos (`booking.created`, `booking.cancelled`, `booking.status_changed`) publicados via Redis Stream/RabbitMQ/Kafka.
-- Consumidores potenciais: notificações, sincronização externa (webhooks), dashboards/BI, billing.
-- Garantir idempotência dos handlers e versão do schema (event envelopes com `event_version`).
-- Multi-tenant: cada requisição deve carregar `X-Tenant-ID`/`X-Tenant-Domain`; os serviços consultam `tenant` para validar regras e aplicar timezone.
-- Pensar em circuit breakers entre serviços (HTTP/REST) e caching leve para configurações estáticas (`organization_settings`).
+### Startup compartilhado
+- Utilitário `shared.startup.database_lifespan_factory` registra lifespan async com tentativas e logs para criação de tabelas.
+- Todos os serviços usam essa fábrica em `app/main.py`, evitando duplicação de código e warnings de API deprecada.
 
-### Ambiente de desenvolvimento
-- Construir imagens: `docker compose build`
-- Subir stack completa: `docker compose up`
-- Parar containers: `docker compose down`
-- Rebuild específico em caso de alterações de dependências: `docker compose up --build`
+### Migrações (Alembic)
+- Cada serviço possui `alembic.ini` e diretório `alembic/` próprios.
+- Execução em containers:
+	- `docker compose run --rm tenant alembic upgrade head`
+	- `docker compose run --rm resource alembic upgrade head`
+	- `docker compose run --rm user alembic upgrade head`
+	- `docker compose run --rm reservation alembic upgrade head`
+- Execução local: garantir `PYTHONPATH` apontando para `shared` + serviço antes de rodar Alembic.
 
-### Próximos passos sugeridos
-- Expandir modelos SQLAlchemy nos serviços `resource`, `user` e `reservation` para refletir o esquema completo descrito acima.
-- Implementar camada de autenticação/autorização unificada (JWT + scopes por serviço).
-- Introduzir módulo de mensageria compartilhado (`shared/messaging`) para padronizar emissão/consumo de eventos.
-- Criar testes automatizados (unitários + integração com banco em memória) para validações críticas de reserva e conflito.
-- Atualizar o diagrama UML incorporando entidades auxiliares (auditoria, eventos, custom fields) e relacionamento multi-tenant explícito.
+### Configuração local do backend
+
+#### Com Docker Compose (recomendado)
+```bash
+docker compose build        # builda todos os serviços (deps atualizadas)
+docker compose up           # sobe postgres, redis, serviços e gateway
+docker compose down         # desmonta ambiente
+docker compose up --build   # rebuild rápido quando muda requirements/Dockerfile
+```
+- O compose injeta automaticamente variáveis cruzadas (`TENANT_SERVICE_URL`, `RESERVATION_SERVICE_URL`) para que os serviços consultem configurações e conflitos em tempo real.
+
+#### Ambiente local sem Docker
+1. Crie e ative um virtualenv (ou utilize `.venv`): `python3 -m venv .venv && source .venv/bin/activate`.
+2. Instale dependências mínimas (ex.: `pip install fastapi uvicorn sqlalchemy alembic httpx` para o serviço de reservas).
+3. Exporte o `PYTHONPATH` apontando para `services/shared` e para o serviço desejado:
+	```bash
+	export PYTHONPATH="$(pwd)/services/shared:$(pwd)/services/reservation"
+	```
+4. Rode as migrações se necessário (`alembic upgrade head`).
+5. Inicie o serviço com `uvicorn app.main:app --reload --port 8000` a partir da pasta do serviço.
+6. Configure as URLs necessárias para integrações entre serviços, por exemplo:
+	```bash
+	export TENANT_SERVICE_URL="http://localhost:8001/tenants"
+	export RESERVATION_SERVICE_URL="http://localhost:8002/reservations"
+	```
+	ajustando as portas conforme os serviços que estiverem rodando localmente.
+7. Repita o processo para cada microserviço em portas diferentes caso queira o ecossistema completo.
+
+### TODO
+- Implementar consumidores para os eventos publicados no Redis (ex.: notificações, faturamento, audit trail).
+- Adicionar autenticação/autorização centralizada (JWT + scopes) e propagar identidade do usuário entre serviços.
+- Expandir endpoints de relatórios/analytics aplicando as mesmas políticas de agenda do tenant.
+- Criar testes de integração entre serviços validando disponibilidade + reserva em tempo real.
+- Automatizar lint/CI com execução de testes e verificação de segurança.

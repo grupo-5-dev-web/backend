@@ -31,6 +31,7 @@ services:
         condition: service_healthy
     networks:
       - backend_net
+    command: ["/bin/sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
 
   tenant:
     build:
@@ -47,6 +48,7 @@ services:
         condition: service_healthy
     networks:
       - backend_net
+    command: ["/bin/sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
 
   resource:
     build:
@@ -58,11 +60,14 @@ services:
     environment:
       - DATABASE_URL=postgresql://user:password@db_resource:5432/resourcedb
       - APP_ROOT_PATH=/resources
+      - TENANT_SERVICE_URL=http://tenant:8000/tenants
+      - RESERVATION_SERVICE_URL=http://reservation:8000/reservations
     depends_on:
       db_resource:
         condition: service_healthy
     networks:
       - backend_net
+    command: ["/bin/sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
 
   reservation:
     build:
@@ -74,11 +79,13 @@ services:
     environment:
       - DATABASE_URL=postgresql://user:password@db_reservation:5432/reservationdb
       - APP_ROOT_PATH=/reservations
+      - TENANT_SERVICE_URL=http://tenant:8000/tenants
     depends_on:
       db_reservation:
         condition: service_healthy
     networks:
       - backend_net
+    command: ["/bin/sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
 
   db_user:
     image: postgres:15
