@@ -84,6 +84,7 @@ docker compose build        # builda todos os serviços (deps atualizadas)
 docker compose up           # sobe postgres, redis, serviços e gateway
 docker compose down         # desmonta ambiente
 docker compose up --build   # rebuild rápido quando muda requirements/Dockerfile
+docker compose up --build --force-recreate # rebuilda tudo (mais adequado para novas dep.)
 ```
 - O compose injeta automaticamente variáveis cruzadas (`TENANT_SERVICE_URL`, `RESERVATION_SERVICE_URL`) para que os serviços consultem configurações e conflitos em tempo real.
 
@@ -103,6 +104,18 @@ docker compose up --build   # rebuild rápido quando muda requirements/Dockerfil
 	```
 	ajustando as portas conforme os serviços que estiverem rodando localmente.
 7. Repita o processo para cada microserviço em portas diferentes caso queira o ecossistema completo.
+
+### 🔧 Pipeline CI (GitHub Actions)
+
+O pipeline de CI executa automaticamente as seguintes etapas em cada Pull Request aberto, atualizado ou com novos commits para a branch main:
+
+- Lint (Ruff): verifica o estilo e possíveis erros de código em todo o backend.
+
+- Testes por serviço: roda a suíte de testes de cada microsserviço separadamente (tenant, resource, reservation, user).
+
+- Coverage Report: gera relatórios de cobertura (pytest --cov) para cada serviço e disponibiliza como artifact no GitHub Actions.
+
+- Validação dos Dockerfiles: executa docker compose build para garantir que todas as imagens Docker continuam buildando corretamente.
 
 ### TODO
 

@@ -10,7 +10,7 @@ COPY services/tenant/app /srv/tenant/app
 COPY services/tenant/alembic.ini /srv/tenant/alembic.ini
 COPY services/tenant/alembic /srv/tenant/alembic
 
-RUN pip install --no-cache-dir fastapi uvicorn psycopg2-binary sqlalchemy redis python-dotenv email-validator alembic
+RUN pip install --no-cache-dir fastapi uvicorn psycopg2-binary sqlalchemy redis python-dotenv email-validator alembic httpx
 
 ENV PYTHONPATH="/srv:/srv/tenant"
 
