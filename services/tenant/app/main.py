@@ -19,6 +19,8 @@ tags_metadata = [
 _CONFIG = load_service_config("tenant")
 _ROOT_PATH = os.getenv("APP_ROOT_PATH", "")
 
+IS_TEST = os.getenv("PYTEST_CURRENT_TEST") is not None
+
 lifespan = database_lifespan_factory(
     service_name="Tenant Service",
     metadata=Base.metadata,
@@ -31,7 +33,7 @@ app = FastAPI(
     version="0.1.0",
     description="API responsável pela administração de tenants e políticas globais de agendamento.",
     openapi_tags=tags_metadata,
-    root_path=_ROOT_PATH,
+    root_path="" if IS_TEST else _ROOT_PATH,
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
