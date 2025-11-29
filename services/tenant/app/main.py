@@ -57,7 +57,7 @@ def custom_openapi_schema():
 app.openapi = custom_openapi_schema
 
 # add as rotas definidas em endpoints.py aqui, pq aí as urls funcionam
-app.include_router(tenants.router, prefix="/tenants")
+app.include_router(tenants.router)
 
 @app.get("/")
 def root():

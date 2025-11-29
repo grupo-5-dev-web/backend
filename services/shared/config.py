@@ -9,7 +9,7 @@ from typing import Dict
 _DEFAULT_DATABASE_URLS: Dict[str, str] = {
     "tenant": "postgresql://user:password@db_tenant:5432/tenantdb",
     "resource": "postgresql://user:password@db_resource:5432/resourcedb",
-    "reservation": "postgresql://user:password@db_reservation:5432/reservationdb",
+    "booking": "postgresql://user:password@db_booking:5432/bookingdb",
     "user": "postgresql://user:password@db_user:5432/userdb",
 }
 

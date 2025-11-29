@@ -20,7 +20,7 @@ for module_name in list(sys.modules):
     if module_name == "app" or module_name.startswith("app."):
         sys.modules.pop(module_name)
 
-os.environ.setdefault("RESERVATION_DATABASE_URL", f"sqlite:///{SERVICE_DIR / 'test_reservation.db'}")
+os.environ.setdefault("BOOKING_DATABASE_URL", f"sqlite:///{SERVICE_DIR / 'test_booking.db'}")
 os.environ.setdefault("EVENT_STREAM", "test-stream")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 

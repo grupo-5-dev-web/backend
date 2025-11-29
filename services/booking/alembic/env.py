@@ -7,7 +7,7 @@ from pathlib import Path
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-SERVICE_NAME = "reservation"
+SERVICE_NAME = "booking"
 
 BASE_DIR = Path(__file__).resolve().parent
 SERVICE_DIR = BASE_DIR.parent
