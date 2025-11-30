@@ -17,7 +17,7 @@ tags_metadata = [
 ]
 
 _CONFIG = load_service_config("tenant")
-_ROOT_PATH = os.getenv("APP_ROOT_PATH", "")
+_ROOT_PATH = os.getenv("APP_ROOT_PATH") or ""
 
 IS_TEST = os.getenv("PYTEST_CURRENT_TEST") is not None
 
@@ -31,9 +31,9 @@ lifespan = database_lifespan_factory(
 app = FastAPI(
     title="Tenant Service",
     version="0.1.0",
-    description="API responsável pela administração de tenants e políticas globais de agendamento.",
+    description="API responsável pela administração de tenants.",
     openapi_tags=tags_metadata,
-    root_path="" if IS_TEST else _ROOT_PATH,
+    root_path="",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -59,7 +59,7 @@ def custom_openapi_schema():
 app.openapi = custom_openapi_schema
 
 # add as rotas definidas em endpoints.py aqui, pq aí as urls funcionam
-app.include_router(tenants.router)
+app.include_router(tenants.router, prefix="/tenants")
 
 @app.get("/")
 def root():

@@ -42,7 +42,7 @@ services:
     container_name: tenant
     environment:
       - DATABASE_URL=postgresql://user:password@db_tenant:5432/tenantdb
-      - APP_ROOT_PATH=/tenants
+      - APP_ROOT_PATH= #/tenants
     depends_on:
       db_tenant:
         condition: service_healthy
