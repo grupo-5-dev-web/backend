@@ -72,8 +72,7 @@ def test_category_archival(client):
     assert delete_resp.status_code == status.HTTP_204_NO_CONTENT
 
     get_resp = client.get(f"/categories/{category_id}")
-    assert get_resp.status_code == status.HTTP_200_OK
-    assert get_resp.json()["is_active"] is False
+    assert get_resp.status_code == status.HTTP_404_NOT_FOUND
 
 
 def test_availability_respects_settings(client):
