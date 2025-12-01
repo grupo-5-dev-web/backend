@@ -49,9 +49,9 @@ def test_create_list_update_delete_user(client):
     delete_response = client.delete(f"/users/{user_id}")
     assert delete_response.status_code == status.HTTP_204_NO_CONTENT
 
+    # ✔ delete real → espera 404
     get_response = client.get(f"/users/{user_id}")
-    assert get_response.status_code == status.HTTP_200_OK
-    assert get_response.json()["is_active"] is False
+    assert get_response.status_code == status.HTTP_404_NOT_FOUND
 
 
 def test_duplicate_email_returns_400(client):

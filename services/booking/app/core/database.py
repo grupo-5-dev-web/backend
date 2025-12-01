@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from shared import load_service_config
 
-_config = load_service_config("reservation")
+_config = load_service_config("booking")
 
 engine = create_engine(
     _config.database.url,

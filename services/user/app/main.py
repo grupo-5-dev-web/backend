@@ -54,8 +54,7 @@ def custom_openapi_schema():
 
 
 app.openapi = custom_openapi_schema
-
-
+app.state.tenant_service_url = os.getenv("TENANT_SERVICE_URL")
 app.include_router(users.router)
 
 

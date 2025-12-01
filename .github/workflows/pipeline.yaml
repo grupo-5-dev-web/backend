@@ -40,7 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [ tenant, resource, reservation, user ]
+        service: [ tenant, resource, booking, user ]
 
     steps:
       - name: Checkout repo

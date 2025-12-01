@@ -1,5 +1,6 @@
 from datetime import time, datetime
 from uuid import UUID
+from typing import Literal
 from typing import Optional, Self
 from pydantic import BaseModel, HttpUrl, ConfigDict, Field, field_validator, model_validator
 
@@ -65,7 +66,7 @@ class TenantBase(BaseModel):
     domain: str
     logo_url: HttpUrl
     theme_primary_color: str
-    plan: str
+    plan: Literal["basico", "profissional", "corporativo"]
     is_active: bool = True
 
     @field_validator("theme_primary_color")

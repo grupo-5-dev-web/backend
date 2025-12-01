@@ -42,6 +42,8 @@ app = FastAPI(
 
 app.state.config = _CONFIG
 app.state.settings_provider = default_settings_provider
+# carrega URL do serviço tenants no docker-compose
+app.state.tenant_service_url = os.getenv("TENANT_SERVICE_URL")
 
 
 def custom_openapi_schema():
@@ -60,9 +62,8 @@ def custom_openapi_schema():
 
 app.openapi = custom_openapi_schema
 
-
-app.include_router(categories.router)
-app.include_router(resources.router)
+app.include_router(categories.router, prefix="/categories")
+app.include_router(resources.router, prefix="/resources")
 
 
 @app.get("/")

@@ -12,7 +12,7 @@ services:
       - user
       - tenant
       - resource
-      - reservation
+      - booking
     networks:
       - backend_net
 
@@ -25,7 +25,8 @@ services:
     container_name: user
     environment:
       - DATABASE_URL=postgresql://user:password@db_user:5432/userdb
-      - APP_ROOT_PATH=/users
+      - TENANT_SERVICE_URL=http://tenant:8000/tenants
+      - APP_ROOT_PATH= #/users
     depends_on:
       db_user:
         condition: service_healthy
@@ -40,9 +41,10 @@ services:
     expose:
       - "8000"
     container_name: tenant
+    hostname: tenant
     environment:
       - DATABASE_URL=postgresql://user:password@db_tenant:5432/tenantdb
-      - APP_ROOT_PATH=/tenants
+      - APP_ROOT_PATH= #/tenants
     depends_on:
       db_tenant:
         condition: service_healthy
@@ -59,9 +61,9 @@ services:
     container_name: resource
     environment:
       - DATABASE_URL=postgresql://user:password@db_resource:5432/resourcedb
-      - APP_ROOT_PATH=/resources
+      - APP_ROOT_PATH= #/resources
       - TENANT_SERVICE_URL=http://tenant:8000/tenants
-      - RESERVATION_SERVICE_URL=http://reservation:8000/reservations
+      - BOOKING_SERVICE_URL=http://booking:8000/bookings
     depends_on:
       db_resource:
         condition: service_healthy
@@ -69,19 +71,21 @@ services:
       - backend_net
     command: ["/bin/sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
 
-  reservation:
+  booking:
     build:
       context: .
-      dockerfile: services/reservation/Dockerfile
+      dockerfile: services/booking/Dockerfile
     expose:
       - "8000"
-    container_name: reservation
+    container_name: booking
     environment:
-      - DATABASE_URL=postgresql://user:password@db_reservation:5432/reservationdb
-      - APP_ROOT_PATH=/reservations
+      - DATABASE_URL=postgresql://user:password@db_booking:5432/bookingdb
+      - APP_ROOT_PATH= #/bookings
       - TENANT_SERVICE_URL=http://tenant:8000/tenants
+      - RESOURCE_SERVICE_URL=http://resource:8000/resources
+      - USER_SERVICE_URL=http://user:8000/users
     depends_on:
-      db_reservation:
+      db_booking:
         condition: service_healthy
     networks:
       - backend_net
@@ -132,14 +136,14 @@ services:
     networks:
       - backend_net
 
-  db_reservation:
+  db_booking:
     image: postgres:15
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: reservationdb
+      POSTGRES_DB: bookingdb
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d reservationdb"]
+      test: ["CMD-SHELL", "pg_isready -U user -d bookingdb"]
       interval: 5s
       timeout: 5s
       retries: 5

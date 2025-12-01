@@ -23,7 +23,7 @@ class UserBase(BaseModel):
     name: str
     email: EmailStr
     phone: Optional[str] = None
-    user_type: str = Field(pattern="^(admin|manager|professional|client)$")
+    user_type: str = Field(pattern="^(admin|user)$")
     department: Optional[str] = None
     is_active: bool = True
     permissions: Permissions = Permissions()
@@ -51,7 +51,7 @@ class UserUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
-    user_type: Optional[str] = Field(default=None, pattern="^(admin|manager|professional|client)$")
+    user_type: Optional[str] = Field(default=None, pattern="^(admin|user)$")
     department: Optional[str] = None
     is_active: Optional[bool] = None
     permissions: Optional[Permissions] = None

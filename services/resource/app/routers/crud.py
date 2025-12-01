@@ -58,6 +58,16 @@ def atualizar_categoria(
     return categoria
 
 
+def deletar_categoria(db: Session, categoria_id: UUID) -> Optional[ResourceCategory]:
+    categoria = buscar_categoria(db, categoria_id)
+    if not categoria:
+        return None
+
+    db.delete(categoria)
+    db.commit()
+    return categoria
+
+
 def criar_recurso(db: Session, recurso: ResourceCreate) -> Resource:
     novo_recurso = Resource(
         tenant_id=recurso.tenant_id,

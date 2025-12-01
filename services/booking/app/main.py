@@ -16,19 +16,19 @@ tags_metadata = [
     }
 ]
 
-_CONFIG = load_service_config("reservation")
+_CONFIG = load_service_config("booking")
 _ROOT_PATH = os.getenv("APP_ROOT_PATH", "")
 _EVENT_PUBLISHER = EventPublisher(_CONFIG.redis.url, _CONFIG.redis.stream)
 
 lifespan = database_lifespan_factory(
-    service_name="Reservation Service",
+    service_name="Booking Service",
     metadata=Base.metadata,
     engine=engine,
     models=(booking_models.Booking, booking_models.BookingEvent),
 )
 
 app = FastAPI(
-    title="Reservation Service",
+    title="Booking Service",
     version="0.1.0",
     description="API responsável pelas reservas, conflitos e eventos emitidos.",
     openapi_tags=tags_metadata,
@@ -57,16 +57,21 @@ def custom_openapi_schema():
     return app.openapi_schema
 
 
+def is_testing():
+    return os.getenv("PYTEST_CURRENT_TEST") is not None
+
+
 app.openapi = custom_openapi_schema
-
-
+app.state.tenant_service_url = os.getenv("TENANT_SERVICE_URL")
+app.state.resource_service_url = os.getenv("RESOURCE_SERVICE_URL")
+app.state.user_service_url = os.getenv("USER_SERVICE_URL")
 app.include_router(bookings.router)
 
 
 @app.get("/")
 def root():
     return {
-        "service": "reservation",
+        "service": "booking",
         "status": "ok",
         "docs_url": "/docs",
         "config": {

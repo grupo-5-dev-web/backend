@@ -99,7 +99,7 @@ def _collect_existing_bookings(
     start: datetime,
     end: datetime,
 ) -> List[tuple[datetime, datetime]]:
-    base_url = os.getenv("RESERVATION_SERVICE_URL")
+    base_url = os.getenv("BOOKING_SERVICE_URL")
     if not base_url:
         return []
 
