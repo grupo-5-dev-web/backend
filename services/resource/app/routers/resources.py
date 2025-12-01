@@ -1,8 +1,10 @@
 from datetime import date
 from typing import List, Optional
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
+
 from app.core.database import get_db
 from app.schemas.resource_schema import (
     ResourceAvailabilityResponse,
@@ -17,16 +19,26 @@ from . import crud
 router = APIRouter(tags=["Resources"])
 
 
-@router.post("/", response_model=ResourceOut, status_code=status.HTTP_201_CREATED)
-async def criar_recurso(recurso: ResourceCreate, request: Request, db: Session = Depends(get_db)):
+@router.post(
+    "/", 
+    response_model=ResourceOut, 
+    status_code=status.HTTP_201_CREATED
+)
+async def criar_recurso(
+    recurso: ResourceCreate,
+    request: Request,
+    db: Session = Depends(get_db)
+):
 
-    # valida tenant
+    tenant_service_url = request.app.state.tenant_service_url
+
+    # --- Validação do Tenant (com bypass automático em pytest) ---
     await validar_tenant_existe(
-        request.app.state.tenant_service_url,
+        tenant_service_url,
         str(recurso.tenant_id)
     )
 
-    # valida categoria
+    # --- Categoria precisa existir no próprio serviço ---
     categoria = crud.buscar_categoria(db, recurso.category_id)
     if not categoria:
         raise HTTPException(status_code=404, detail="Categoria não encontrada")
@@ -42,19 +54,32 @@ def listar_recursos(
     search: Optional[str] = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    
     recursos = crud.listar_recursos(db, tenant_id, category_id, status, search)
+
     if not recursos and category_id:
-        raise HTTPException(status_code=404, detail="Não foram encontrados Recursos nesta categoria")
+        raise HTTPException(
+            status_code=404,
+            detail="Não foram encontrados Recursos nesta categoria"
+        )
     if not recursos and tenant_id:
-        raise HTTPException(status_code=404, detail="Não foram encontrados Recursos neste Tenant")
+        raise HTTPException(
+            status_code=404,
+            detail="Não foram encontrados Recursos neste Tenant"
+        )
     if not recursos:
-        raise HTTPException(status_code=404, detail="Não foram encontrados Recursos")
+        raise HTTPException(
+            status_code=404,
+            detail="Não foram encontrados Recursos"
+        )
+
     return recursos
 
 
 @router.get("/{recurso_id}", response_model=ResourceOut)
-def obter_recurso(recurso_id: UUID, db: Session = Depends(get_db)):
+def obter_recurso(
+    recurso_id: UUID,
+    db: Session = Depends(get_db)
+):
     recurso = crud.buscar_recurso(db, recurso_id)
     if not recurso:
         raise HTTPException(status_code=404, detail="Recurso não encontrado")
@@ -65,7 +90,7 @@ def obter_recurso(recurso_id: UUID, db: Session = Depends(get_db)):
 def atualizar_recurso(
     recurso_id: UUID,
     recurso_update: ResourceUpdate,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
     recurso = crud.atualizar_recurso(db, recurso_id, recurso_update)
     if not recurso:
@@ -74,7 +99,10 @@ def atualizar_recurso(
 
 
 @router.delete("/{recurso_id}", status_code=status.HTTP_204_NO_CONTENT)
-def deletar_recurso(recurso_id: UUID, db: Session = Depends(get_db)):
+def deletar_recurso(
+    recurso_id: UUID,
+    db: Session = Depends(get_db)
+):
     recurso = crud.deletar_recurso(db, recurso_id)
     if not recurso:
         raise HTTPException(status_code=404, detail="Recurso não encontrado")
@@ -91,7 +119,10 @@ def consultar_disponibilidade(
     try:
         target_date = date.fromisoformat(data)
     except ValueError as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Data inválida. Use o formato YYYY-MM-DD.") from exc
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Data inválida. Use o formato YYYY-MM-DD."
+        ) from exc
 
     result = compute_availability(
         app_state=request.app.state,
