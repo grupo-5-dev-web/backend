@@ -57,6 +57,10 @@ def custom_openapi_schema():
     return app.openapi_schema
 
 
+def is_testing():
+    return os.getenv("PYTEST_CURRENT_TEST") is not None
+
+
 app.openapi = custom_openapi_schema
 app.state.tenant_service_url = os.getenv("TENANT_SERVICE_URL")
 app.state.resource_service_url = os.getenv("RESOURCE_SERVICE_URL")
