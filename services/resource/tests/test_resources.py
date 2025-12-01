@@ -11,7 +11,7 @@ def _category_payload(tenant_id: str):
         "tenant_id": tenant_id,
         "name": "Salas",
         "description": "Salas de reunião",
-        "type": "physical",
+        "type": "fisico",  # 👈 corrigido para atender ao schema
         "icon": "meeting_room",
         "color": "#FFAA00",
         "category_metadata": {
@@ -100,10 +100,13 @@ def test_availability_respects_settings(client):
     body = resp.json()
     assert body["resource_id"] == resource_id
     assert body["tenant_id"] == tenant_id
+
     slots = body["slots"]
     assert slots, "Deve retornar pelo menos um horário disponível"
+
     parsed_slots = [datetime.fromisoformat(slot["start_time"]) for slot in slots]
     assert all(item.tzinfo is not None for item in parsed_slots)
+
     assert slots[0]["start_time"].startswith(f"{target_date}T09:00")
     assert slots[-1]["end_time"].startswith(f"{target_date}T18:00")
 
