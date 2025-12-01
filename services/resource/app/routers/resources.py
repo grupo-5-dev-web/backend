@@ -11,16 +11,26 @@ from app.schemas.resource_schema import (
     ResourceUpdate,
 )
 from app.services.availability import compute_availability
+from app.services.tenant_validator import validar_tenant_existe
 from . import crud
 
-router = APIRouter(prefix="/resources", tags=["Resources"])
+router = APIRouter(tags=["Resources"])
 
 
 @router.post("/", response_model=ResourceOut, status_code=status.HTTP_201_CREATED)
-def criar_recurso(recurso: ResourceCreate, db: Session = Depends(get_db)):
+async def criar_recurso(recurso: ResourceCreate, request: Request, db: Session = Depends(get_db)):
+
+    # valida tenant
+    await validar_tenant_existe(
+        request.app.state.tenant_service_url,
+        str(recurso.tenant_id)
+    )
+
+    # valida categoria
     categoria = crud.buscar_categoria(db, recurso.category_id)
     if not categoria:
         raise HTTPException(status_code=404, detail="Categoria não encontrada")
+
     return crud.criar_recurso(db, recurso)
 
 
@@ -32,7 +42,15 @@ def listar_recursos(
     search: Optional[str] = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    return crud.listar_recursos(db, tenant_id, category_id, status, search)
+    
+    recursos = crud.listar_recursos(db, tenant_id, category_id, status, search)
+    if not recursos and category_id:
+        raise HTTPException(status_code=404, detail="Não foram encontrados Recursos nesta categoria")
+    if not recursos and tenant_id:
+        raise HTTPException(status_code=404, detail="Não foram encontrados Recursos neste Tenant")
+    if not recursos:
+        raise HTTPException(status_code=404, detail="Não foram encontrados Recursos")
+    return recursos
 
 
 @router.get("/{recurso_id}", response_model=ResourceOut)

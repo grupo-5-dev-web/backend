@@ -10,9 +10,9 @@ class BookingStatus:
     CONFIRMED = "confirmado"
     CANCELLED = "cancelado"
     COMPLETED = "concluido"
-    NO_SHOW = "nao_compareceu"
+    NO_DATA = "sem_dados"
 
-    ALL = {PENDING, CONFIRMED, CANCELLED, COMPLETED, NO_SHOW}
+    ALL = {PENDING, CONFIRMED, CANCELLED, COMPLETED, NO_DATA}
 
 
 class Booking(Base):

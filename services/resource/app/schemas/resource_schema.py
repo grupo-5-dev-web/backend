@@ -14,7 +14,7 @@ class ResourceCategoryBase(BaseModel):
     tenant_id: UUID
     name: str
     description: Optional[str] = None
-    type: str = Field(..., pattern="^(physical|human|software)$")
+    type: str = Field(..., pattern="^(fisico|humano)$")
     icon: Optional[str] = None
     color: Optional[str] = None
     is_active: bool = True
@@ -32,7 +32,7 @@ class ResourceCategoryCreate(ResourceCategoryBase):
 class ResourceCategoryUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    type: Optional[str] = Field(default=None, pattern="^(physical|human|software)$")
+    type: Optional[str] = Field(default=None, pattern="^(fisico|humano)")
     icon: Optional[str] = None
     color: Optional[str] = None
     is_active: Optional[bool] = None

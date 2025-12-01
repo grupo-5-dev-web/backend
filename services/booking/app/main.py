@@ -58,8 +58,9 @@ def custom_openapi_schema():
 
 
 app.openapi = custom_openapi_schema
-
-
+app.state.tenant_service_url = os.getenv("TENANT_SERVICE_URL")
+app.state.resource_service_url = os.getenv("RESOURCE_SERVICE_URL")
+app.state.user_service_url = os.getenv("USER_SERVICE_URL")
 app.include_router(bookings.router)
 
 

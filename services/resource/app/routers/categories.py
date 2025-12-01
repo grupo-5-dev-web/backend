@@ -1,6 +1,6 @@
 from typing import List, Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.schemas.resource_schema import (
@@ -8,13 +8,18 @@ from app.schemas.resource_schema import (
     ResourceCategoryOut,
     ResourceCategoryUpdate,
 )
+from app.services.tenant_validator import validar_tenant_existe
 from . import crud
 
-router = APIRouter(prefix="/categories", tags=["Resource Categories"])
+router = APIRouter(tags=["Resource Categories"])
 
-
+    
 @router.post("/", response_model=ResourceCategoryOut, status_code=status.HTTP_201_CREATED)
-def criar_categoria(categoria: ResourceCategoryCreate, db: Session = Depends(get_db)):
+async def criar_categoria(categoria: ResourceCategoryCreate, request: Request, db: Session = Depends(get_db)):
+    await validar_tenant_existe(
+        request.app.state.tenant_service_url,
+        str(categoria.tenant_id)
+    )
     return crud.criar_categoria(db, categoria)
 
 
@@ -23,7 +28,10 @@ def listar_categorias(
     tenant_id: Optional[UUID] = Query(default=None, description="Tenant a filtrar"),
     db: Session = Depends(get_db),
 ):
-    return crud.listar_categorias(db, tenant_id)
+    categorias = crud.listar_categorias(db, tenant_id)
+    if not categorias:
+        raise HTTPException(status_code=404, detail="Não existem categorias para este Tenant ou ele não existe")
+    return categorias
 
 
 @router.get("/{categoria_id}", response_model=ResourceCategoryOut)
@@ -47,11 +55,8 @@ def atualizar_categoria(
 
 
 @router.delete("/{categoria_id}", status_code=status.HTTP_204_NO_CONTENT)
-def arquivar_categoria(categoria_id: UUID, db: Session = Depends(get_db)):
-    categoria = crud.buscar_categoria(db, categoria_id)
+def deletar_categoria(categoria_id: UUID, db: Session = Depends(get_db)):
+    categoria = crud.deletar_categoria(db, categoria_id)
     if not categoria:
         raise HTTPException(status_code=404, detail="Categoria não encontrada")
-
-    categoria.is_active = False
-    db.commit()
     return None

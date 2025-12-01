@@ -86,12 +86,12 @@ def update_user(db: Session, user_id: UUID, payload: UserUpdate) -> Optional[Use
     return user
 
 
-def deactivate_user(db: Session, user_id: UUID) -> Optional[User]:
+def delete_user(db: Session, user_id: UUID) -> Optional[User]:
     user = get_user(db, user_id)
     if not user:
         return None
 
-    user.is_active = False
+    db.delete(user)
     db.commit()
-    db.refresh(user)
+
     return user
