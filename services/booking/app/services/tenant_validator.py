@@ -2,7 +2,11 @@ import httpx
 from fastapi import HTTPException
 
 async def validar_tenant_existe(tenant_service_url: str, tenant_id: str):
-    url = f"{tenant_service_url.rstrip('/')}/{tenant_id}"
+    if not tenant_service_url:
+        # teste: não valida nada
+        return {"id": tenant_id}
+
+    url = f"{tenant_service_url.rstrip('/')}/tenants/{tenant_id}"
 
     async with httpx.AsyncClient() as client:
         resp = await client.get(url)

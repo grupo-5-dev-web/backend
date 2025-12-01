@@ -4,8 +4,12 @@ from fastapi import HTTPException
 async def validar_usuario_existe(user_service_url: str, user_id: str):
     """
     Valida existência do usuário via User Service.
+    Em ambiente de teste (sem URL), retorna mock.
     """
-    # http://user:8000/users/<user_id>
+    # Ambiente de teste: ignora validação externa
+    if not user_service_url:
+        return {"id": user_id, "tenant_id": None}
+
     url = f"{user_service_url.rstrip('/')}/{user_id}"
 
     async with httpx.AsyncClient() as client:

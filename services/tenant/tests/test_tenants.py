@@ -31,7 +31,7 @@ def _tenant_payload(domain: str):
         "domain": domain,
         "logo_url": "https://example.com/logo.png",
         "theme_primary_color": "#123456",
-        "plan": "premium",
+        "plan": "basico",   # <-- ALTERADO
         "settings": _settings(),
     }
 
@@ -55,11 +55,11 @@ def test_tenant_crud_flow(client):
 
     update_resp = client.put(
         f"/tenants/{tenant_id}",
-        json={"name": "Tenant Atualizado", "plan": "enterprise"},
+        json={"name": "Tenant Atualizado", "plan": "corporativo"},  # <-- ALTERADO
     )
     assert update_resp.status_code == status.HTTP_200_OK
     assert update_resp.json()["name"] == "Tenant Atualizado"
-    assert update_resp.json()["plan"] == "enterprise"
+    assert update_resp.json()["plan"] == "corporativo"
 
     delete_resp = client.delete(f"/tenants/{tenant_id}")
     assert delete_resp.status_code == status.HTTP_204_NO_CONTENT
