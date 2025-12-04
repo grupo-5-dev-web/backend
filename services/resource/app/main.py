@@ -2,6 +2,7 @@ import os
 
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import HTMLResponse
 
 from app.core.database import Base, engine
 from app.models import resource as resource_models
@@ -36,7 +37,7 @@ app = FastAPI(
     openapi_tags=tags_metadata,
     root_path=_ROOT_PATH,
     lifespan=lifespan,
-    docs_url="/docs",
+    docs_url=None,
     redoc_url="/redoc",
 )
 
@@ -61,6 +62,35 @@ def custom_openapi_schema():
 
 
 app.openapi = custom_openapi_schema
+
+# Custom Swagger UI with correct openapi.json path
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    return HTMLResponse(f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <link type="text/css" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
+        <title>{app.title} - Swagger UI</title>
+    </head>
+    <body>
+        <div id="swagger-ui"></div>
+        <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+        <script>
+        const ui = SwaggerUIBundle({{
+            url: '/api-docs/resources/openapi.json',
+            dom_id: '#swagger-ui',
+            presets: [
+                SwaggerUIBundle.presets.apis,
+                SwaggerUIBundle.SwaggerUIStandalonePreset
+            ],
+            layout: "BaseLayout",
+            deepLinking: true
+        }})
+        </script>
+    </body>
+    </html>
+    """)
 
 app.include_router(categories.router, prefix="/categories")
 app.include_router(resources.router, prefix="/resources")
