@@ -4,8 +4,6 @@ import os
 import sys
 from pathlib import Path
 
-import pytest
-
 # Setup paths - add the services directory to the path
 SERVICE_DIR = Path(__file__).resolve().parents[1]
 ROOT_DIR = SERVICE_DIR.parent
