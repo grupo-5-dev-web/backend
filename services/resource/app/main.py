@@ -17,11 +17,12 @@ from app.consumers import (
 import asyncio
 import logging
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configure logging only if not already configured
+if not logging.root.handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
 logger = logging.getLogger(__name__)
 
 tags_metadata = [
@@ -39,8 +40,8 @@ _CONFIG = load_service_config("resource")
 _ROOT_PATH = os.getenv("APP_ROOT_PATH", "")
 
 # Consumer instance
-_consumer: EventConsumer = None
-_consumer_task = None
+_consumer: EventConsumer | None = None
+_consumer_task: asyncio.Task | None = None
 
 
 @asynccontextmanager
@@ -79,14 +80,23 @@ async def app_lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"Error stopping consumer: {e}")
         
-        if _consumer_task:
-            _consumer_task.cancel()
+        if _consumer_task and not _consumer_task.done():
+            # Give it a moment to finish current message processing
             try:
-                await _consumer_task
+                await asyncio.wait_for(_consumer_task, timeout=5.0)
+            except asyncio.TimeoutError:
+                logger.warning("Consumer task did not stop gracefully, cancelling...")
+                _consumer_task.cancel()
+                try:
+                    await _consumer_task
+                except asyncio.CancelledError:
+                    # Task cancellation is expected during shutdown; ignore this exception.
+                    pass
             except asyncio.CancelledError:
+                # Task cancellation is expected during shutdown; ignore this exception.
                 pass
             except Exception as e:
-                logger.warning(f"Error cancelling consumer task: {e}")
+                logger.warning(f"Error waiting for consumer task: {e}")
     logger.info("Resource Service stopped")
 
 lifespan = app_lifespan
