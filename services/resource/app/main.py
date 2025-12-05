@@ -74,13 +74,19 @@ async def app_lifespan(app: FastAPI):
     
     # Cleanup
     if _consumer:
-        await _consumer.stop()
+        try:
+            await _consumer.stop()
+        except Exception as e:
+            logger.warning(f"Error stopping consumer: {e}")
+        
         if _consumer_task:
             _consumer_task.cancel()
             try:
                 await _consumer_task
             except asyncio.CancelledError:
                 pass
+            except Exception as e:
+                logger.warning(f"Error cancelling consumer task: {e}")
     logger.info("Resource Service stopped")
 
 lifespan = app_lifespan

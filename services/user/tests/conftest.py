@@ -20,6 +20,7 @@ for module_name in list(sys.modules):
         sys.modules.pop(module_name)
 
 os.environ.setdefault("USER_DATABASE_URL", f"sqlite:///{SERVICE_DIR / 'test_user.db'}")
+os.environ["REDIS_URL"] = ""  # Disable event consumer in tests
 
 from app.main import app  # noqa: E402
 from app.core.database import Base, engine  # noqa: E402
