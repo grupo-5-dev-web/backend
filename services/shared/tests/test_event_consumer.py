@@ -350,3 +350,18 @@ class TestCleanupConsumer:
         
         # Task should be cancelled
         assert task.cancelled() or task.done()
+    
+    @pytest.mark.asyncio
+    async def test_cleanup_task_without_consumer(self, mock_logger):
+        """Test that cleanup handles task even when consumer is None."""
+        # Create a real task that won't complete
+        async def never_complete():
+            await asyncio.sleep(100)
+        
+        task = asyncio.create_task(never_complete())
+        
+        # Should cancel the task even without a consumer
+        await cleanup_consumer(None, task, mock_logger, timeout=0.1)
+        
+        # Task should be cancelled
+        assert task.cancelled() or task.done()

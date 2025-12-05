@@ -231,22 +231,24 @@ async def cleanup_consumer(
         logger: Logger instance for logging messages
         timeout: Timeout in seconds to wait for graceful shutdown
     """
+    # Stop consumer if it exists
     if consumer:
         try:
             await consumer.stop()
         except Exception as e:
             logger.warning(f"Error stopping consumer: {e}")
-        
-        if consumer_task and not consumer_task.done():
+    
+    # Clean up task even if consumer is None
+    if consumer_task and not consumer_task.done():
+        try:
+            await asyncio.wait_for(consumer_task, timeout=timeout)
+        except asyncio.TimeoutError:
+            logger.warning("Consumer task did not stop gracefully, cancelling...")
+            consumer_task.cancel()
             try:
-                await asyncio.wait_for(consumer_task, timeout=timeout)
-            except asyncio.TimeoutError:
-                logger.warning("Consumer task did not stop gracefully, cancelling...")
-                consumer_task.cancel()
-                try:
-                    await consumer_task
-                except asyncio.CancelledError:
-                    # Task cancellation is expected during shutdown; ignore.
-                    pass
-            except Exception as e:
-                logger.warning(f"Error waiting for consumer task: {e}")
+                await consumer_task
+            except asyncio.CancelledError:
+                # Task cancellation is expected during shutdown; ignore.
+                pass
+        except Exception as e:
+            logger.warning(f"Error waiting for consumer task: {e}")
