@@ -29,7 +29,7 @@ async def validar_tenant_existe(tenant_service_url: str, tenant_id: str):
     # 3. Monta URL correta
     # Exemplo: http://tenant:8000/tenants/<tenant_id>
     base = tenant_service_url.rstrip("/")
-    url = f"{base}/{tenant_id}"
+    url = f"{base}/tenants/{tenant_id}"
 
     try:
         async with httpx.AsyncClient() as client:
