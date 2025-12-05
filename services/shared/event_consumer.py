@@ -97,10 +97,16 @@ class EventConsumer:
             # Parse payload
             payload = json.loads(payload_str)
             
+            # Decode message ID safely
+            try:
+                message_id_str = message_id.decode('utf-8')
+            except UnicodeDecodeError:
+                message_id_str = message_id.hex()
+            
             # Find and execute handler
             handler = self._handlers.get(event_type)
             if handler:
-                logger.debug(f"Processing {event_type}: {message_id.decode()}")
+                logger.debug(f"Processing {event_type}: {message_id_str}")
                 await handler(event_type, payload)
                 
                 # Acknowledge message only after successful processing
@@ -110,8 +116,13 @@ class EventConsumer:
                     message_id,
                 )
             else:
-                logger.warning(f"No handler registered for event type: {event_type}. Message not acknowledged.")
-                # Message will remain pending and can be claimed by another consumer
+                logger.warning(f"No handler registered for event type: {event_type}. Acknowledging to skip.")
+                # Acknowledge messages without handlers to prevent infinite pending queue
+                await self._client.xack(
+                    self._stream_name,
+                    self._group_name,
+                    message_id,
+                )
             
         except Exception as e:
             logger.error(f"Error processing message {message_id}: {e}", exc_info=True)
@@ -154,11 +165,11 @@ class EventConsumer:
             logger.warning("Consumer already running")
             return
 
-        self._running = True
         self._client = aioredis.Redis.from_url(self._redis_url)
         
         try:
             await self._ensure_consumer_group()
+            self._running = True  # Set after successful initialization
             logger.info(
                 f"Consumer '{self._consumer_name}' started on stream '{self._stream_name}'"
             )
@@ -203,3 +214,41 @@ class EventConsumer:
         """Stop consuming events."""
         self._running = False
         logger.info("Stopping consumer...")
+
+
+async def cleanup_consumer(
+    consumer: EventConsumer | None,
+    consumer_task: asyncio.Task | None,
+    logger: logging.Logger,
+    timeout: float = 5.0
+) -> None:
+    """
+    Helper to gracefully shutdown event consumer and task.
+    
+    Args:
+        consumer: The EventConsumer instance to stop
+        consumer_task: The asyncio.Task running the consumer
+        logger: Logger instance for logging messages
+        timeout: Timeout in seconds to wait for graceful shutdown
+    """
+    # Stop consumer if it exists
+    if consumer:
+        try:
+            await consumer.stop()
+        except Exception as e:
+            logger.warning(f"Error stopping consumer: {e}")
+    
+    # Clean up task even if consumer is None
+    if consumer_task and not consumer_task.done():
+        try:
+            await asyncio.wait_for(consumer_task, timeout=timeout)
+        except asyncio.TimeoutError:
+            logger.warning("Consumer task did not stop gracefully, cancelling...")
+            consumer_task.cancel()
+            try:
+                await consumer_task
+            except asyncio.CancelledError:
+                # Task cancellation is expected during shutdown; ignore.
+                pass
+        except Exception as e:
+            logger.warning(f"Error waiting for consumer task: {e}")

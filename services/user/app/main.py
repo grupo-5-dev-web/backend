@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse
 
 from app.core.database import Base, engine
 from app.routers import users
-from shared import load_service_config, EventConsumer
+from shared import load_service_config, EventConsumer, cleanup_consumer
 from app.consumers import (
     handle_booking_created,
     handle_booking_cancelled,
@@ -45,9 +45,19 @@ async def app_lifespan(app: FastAPI):
     """Combined lifespan with database and event consumer."""
     global _consumer, _consumer_task
     
-    # Database startup
+    # Database startup with retries
     logger.info("Starting User Service...")
-    Base.metadata.create_all(bind=engine)
+    for attempt in range(10):
+        try:
+            Base.metadata.create_all(bind=engine)
+            break
+        except Exception as e:
+            if attempt < 9:
+                logger.warning(f"Database unavailable, retrying... attempt {attempt + 1}: {e}")
+                await asyncio.sleep(2.0)
+            else:
+                logger.error("Database unavailable after 10 attempts, giving up.")
+                raise
     
     # Start event consumer
     if _CONFIG.redis.url:
@@ -69,30 +79,8 @@ async def app_lifespan(app: FastAPI):
     
     yield
     
-    # Cleanup
-    if _consumer:
-        try:
-            await _consumer.stop()
-        except Exception as e:
-            logger.warning(f"Error stopping consumer: {e}")
-        
-        if _consumer_task and not _consumer_task.done():
-            # Give it a moment to finish current message processing
-            try:
-                await asyncio.wait_for(_consumer_task, timeout=5.0)
-            except asyncio.TimeoutError:
-                logger.warning("Consumer task did not stop gracefully, cancelling...")
-                _consumer_task.cancel()
-                try:
-                    await _consumer_task
-                except asyncio.CancelledError:
-                    # Task cancellation is expected during shutdown; ignore this exception.
-                    pass
-            except asyncio.CancelledError:
-                # Task cancellation is expected during shutdown; ignore this exception.
-                pass
-            except Exception as e:
-                logger.warning(f"Error waiting for consumer task: {e}")
+    # Cleanup using shared helper
+    await cleanup_consumer(_consumer, _consumer_task, logger)
     logger.info("User Service stopped")
 
 lifespan = app_lifespan
