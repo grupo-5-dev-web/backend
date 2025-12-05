@@ -1,5 +1,6 @@
 # app/main.py
 import os
+from html import escape
 
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
@@ -67,7 +68,7 @@ async def custom_swagger_ui_html():
     <html>
     <head>
         <link type="text/css" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
-        <title>{app.title} - Swagger UI</title>
+        <title>{escape(app.title)} - Swagger UI</title>
     </head>
     <body>
         <div id="swagger-ui"></div>
