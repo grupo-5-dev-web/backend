@@ -68,7 +68,7 @@ def create_booking(
         client_id=payload.client_id,
         start_time=payload.start_time,
         end_time=payload.end_time,
-        status=payload.status or BookingStatus.PENDING,
+        status=payload.status or BookingStatus.CONFIRMED,
         notes=payload.notes,
         recurring_enabled=payload.recurring_enabled,
         recurring_pattern=payload.recurring_pattern.model_dump() if payload.recurring_pattern else None,
