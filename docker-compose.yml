@@ -76,8 +76,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://user:password@db_booking:5432/bookingdb
       - TENANT_SERVICE_URL=http://tenant:8000
-      - RESOURCE_SERVICE_URL=http://resource:8000/resources
-      - USER_SERVICE_URL=http://user:8000/users
+      - RESOURCE_SERVICE_URL=http://resource:8000
+      - USER_SERVICE_URL=http://user:8000
     depends_on:
       db_booking:
         condition: service_healthy

@@ -10,7 +10,7 @@ async def validar_recurso_existe(resource_service_url: str, resource_id: str):
     if not resource_service_url:
         return {"id": resource_id, "tenant_id": None}
 
-    url = f"{resource_service_url.rstrip('/')}/{resource_id}"
+    url = f"{resource_service_url.rstrip('/')}/resources/{resource_id}"
 
     async with httpx.AsyncClient() as client:
         resp = await client.get(url)

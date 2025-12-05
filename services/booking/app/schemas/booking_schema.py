@@ -10,7 +10,7 @@ class RecurringPattern(BaseModel):
     frequency: str = Field(pattern="^(daily|weekly|monthly)$", description="Frequência da recorrência: daily, weekly ou monthly")
     interval: int = Field(ge=1, le=52, default=1, description="Intervalo entre ocorrências (ex: a cada 2 semanas)")
     end_date: Optional[datetime] = Field(default=None, description="Data final da recorrência")
-    days_of_week: Optional[list[int]] = Field(default=None, description="Dias da semana para recorrência semanal (0=Domingo, 6=Sábado)")
+    days_of_week: Optional[list[int]] = Field(default=None, description="Dias da semana para recorrência semanal (0=Segunda, 6=Domingo)")
 
     @field_validator("days_of_week")
     @classmethod
