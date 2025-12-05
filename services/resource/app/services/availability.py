@@ -101,10 +101,9 @@ def _collect_existing_bookings(
 
     base_url = os.getenv("BOOKING_SERVICE_URL")
     if not base_url:
-        print("[BOOKINGS] BOOKING_SERVICE_URL NÃO CONFIGURADA")
         return []
 
-    url = f"{base_url.rstrip('/')}/"
+    url = f"{base_url.rstrip('/')}/bookings/"
     params = {
         "tenant_id": str(tenant_id),
         "resource_id": str(resource_id),
@@ -112,15 +111,10 @@ def _collect_existing_bookings(
         "end_date": end.isoformat(),
     }
 
-    print("[BOOKINGS] Chamando:", url, "params=", params)
-
     try:
         response = httpx.get(url, params=params, timeout=2.0)
-        print("[BOOKINGS] status:", response.status_code)
-        print("[BOOKINGS] body:", response.text)
         response.raise_for_status()
-    except Exception as e:
-        print("[BOOKINGS] ERRO AO CONSULTAR:", repr(e))
+    except Exception:
         return []
 
     data = response.json()
@@ -131,7 +125,6 @@ def _collect_existing_bookings(
         end_dt = datetime.fromisoformat(item["end_time"].replace("Z", "+00:00"))
         bookings.append((start_dt, end_dt))
 
-    print("[BOOKINGS] bookings encontrados:", bookings)
     return bookings
 
 

@@ -9,8 +9,9 @@ COPY services/shared /srv/shared
 COPY services/resource/app /srv/resource/app
 COPY services/resource/alembic.ini /srv/resource/alembic.ini
 COPY services/resource/alembic /srv/resource/alembic
+COPY services/resource/tests /srv/resource/tests
 
-RUN pip install --no-cache-dir fastapi uvicorn psycopg2-binary sqlalchemy redis python-dotenv email-validator alembic httpx
+RUN pip install --no-cache-dir fastapi uvicorn psycopg2-binary sqlalchemy redis python-dotenv email-validator alembic httpx pytest pytest-cov httpx
 
 ENV PYTHONPATH="/srv:/srv/resource"
 
