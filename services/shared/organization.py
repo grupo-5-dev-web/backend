@@ -82,8 +82,10 @@ def _resolve_zone(tz_name: str) -> ZoneInfo:
 
 def ensure_timezone(dt: datetime, tz_name: str) -> datetime:
     zone = _resolve_zone(tz_name)
+
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        return dt.replace(tzinfo=zone)
+    
     return dt.astimezone(zone)
 
 
