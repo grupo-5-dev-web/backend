@@ -10,7 +10,7 @@ async def validar_tenant_existe(tenant_service_url: str, tenant_id: str):
     if not tenant_service_url:
         return {"id": tenant_id}
 
-    url = f"{tenant_service_url.rstrip('/')}/{tenant_id}"
+    url = f"{tenant_service_url.rstrip('/')}/tenants/{tenant_id}"
 
     async with httpx.AsyncClient() as client:
         try:
