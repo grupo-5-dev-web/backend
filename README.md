@@ -154,7 +154,7 @@ O sistema implementa comunicação assíncrona baseada em eventos usando **Redis
 
 #### Componentes
 
-**EventPublisher** (`services/shared/event_publisher.py`)
+**EventPublisher** (`services/shared/messaging.py`)
 - Publica eventos no Redis Stream `booking-events`
 - Cada evento contém: `event_type`, `payload` (JSON) e `metadata` (tenant_id)
 - Usado pelo Booking Service para emitir eventos após mudanças de estado
@@ -230,8 +230,8 @@ consumer = EventConsumer(
     consumer_name="worker-1"
 )
 
-async def handle_booking_created(event_data: dict):
-    logger.info(f"Processando: {event_data}")
+async def handle_booking_created(event_type: str, payload: dict):
+    logger.info(f"Processando {event_type}: {payload}")
     # sua lógica aqui
 
 consumer.register_handler("booking.created", handle_booking_created)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from typing import Any, Callable, Coroutine, Optional
 
@@ -94,7 +95,6 @@ class EventConsumer:
             payload_str = data.get(b"payload", b"{}").decode("utf-8")
             
             # Parse payload
-            import json
             payload = json.loads(payload_str)
             
             # Find and execute handler
@@ -102,15 +102,16 @@ class EventConsumer:
             if handler:
                 logger.debug(f"Processing {event_type}: {message_id.decode()}")
                 await handler(event_type, payload)
+                
+                # Acknowledge message only after successful processing
+                await self._client.xack(
+                    self._stream_name,
+                    self._group_name,
+                    message_id,
+                )
             else:
-                logger.debug(f"No handler for event type: {event_type}")
-            
-            # Acknowledge message
-            await self._client.xack(
-                self._stream_name,
-                self._group_name,
-                message_id,
-            )
+                logger.warning(f"No handler registered for event type: {event_type}. Message not acknowledged.")
+                # Message will remain pending and can be claimed by another consumer
             
         except Exception as e:
             logger.error(f"Error processing message {message_id}: {e}", exc_info=True)
