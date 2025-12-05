@@ -7,9 +7,8 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse
 
 from app.core.database import Base, engine
-from app.models import user as user_models
 from app.routers import users
-from shared import database_lifespan_factory, load_service_config, EventConsumer
+from shared import load_service_config, EventConsumer
 from app.consumers import (
     handle_booking_created,
     handle_booking_cancelled,

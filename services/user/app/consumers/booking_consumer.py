@@ -38,7 +38,6 @@ async def handle_booking_cancelled(event_type: str, payload: dict[str, Any]) -> 
     - Future: Send cancellation notification to user
     """
     booking_id = payload.get("booking_id")
-    user_id = payload.get("user_id")
     cancelled_by = payload.get("cancelled_by")
     reason = payload.get("reason", "Não informado")
     
