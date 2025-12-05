@@ -53,7 +53,7 @@ backend/
 - **Política de cancelamento**: listagens de reservas (`GET /bookings/`) incluem `can_cancel` calculado dinamicamente, refletindo a janela configurada pelo tenant.
 - **Disponibilidade de recursos**: `GET /resources/{id}/availability` monta slots alinhados ao expediente e intervalo do tenant, consulta o serviço de bookings via `BOOKING_SERVICE_URL` para bloquear conflitos e responde com timezone normalizado.
 - **Detecção de conflitos**: ao criar ou atualizar reservas, o sistema verifica se já existe booking aprovado/pendente no mesmo recurso e horário, retornando status 409 com lista de conflitos.
-- **Eventos de reserva**: toda mudança (`booking.created`, `booking.updated`, `booking.cancelled`, `booking.status_changed`) vai para o Redis Stream definido em `shared.EventPublisher`, viabilizando consumidores assíncronos (notificações, analytics, billing).
+- **Arquitetura event-driven**: toda mudança de reserva (`booking.created`, `booking.updated`, `booking.cancelled`, `booking.status_changed`) é publicada em Redis Streams. Serviços de user e resource consomem eventos via Consumer Groups para atualizar caches, enviar notificações e registrar métricas de forma assíncrona e desacoplada.
 - **Landing page unificada**: gateway Nginx serve `http://localhost:8000/` com atalhos para a documentação Swagger de cada serviço.
 
 ### Exemplo de fluxo completo
@@ -148,6 +148,105 @@ curl "http://localhost:8000/bookings/?tenant_id=d49eccff-6586-44cc-b723-719f78a6
 # Resposta: [{"id": "...", "can_cancel": false, ...}]
 ```
 
+### Arquitetura Event-Driven com Redis Streams
+
+O sistema implementa comunicação assíncrona baseada em eventos usando **Redis Streams** com **Consumer Groups**, permitindo processamento distribuído e garantias de entrega.
+
+#### Componentes
+
+**EventPublisher** (`services/shared/event_publisher.py`)
+- Publica eventos no Redis Stream `booking-events`
+- Cada evento contém: `event_type`, `payload` (JSON) e `metadata` (tenant_id)
+- Usado pelo Booking Service para emitir eventos após mudanças de estado
+
+**EventConsumer** (`services/shared/event_consumer.py`)
+- Consumidor genérico baseado em `XREADGROUP` (Redis Streams)
+- Suporta múltiplos consumidores no mesmo grupo para load balancing
+- Processa mensagens pendentes no startup (recuperação de falhas)
+- Handlers registrados por tipo de evento
+- Graceful shutdown com cancelamento de tasks asyncio
+
+#### Eventos Publicados (Booking Service)
+
+| Evento | Payload | Quando |
+|--------|---------|--------|
+| `booking.created` | `booking_id`, `status`, `start_time`, `end_time` | Nova reserva criada |
+| `booking.updated` | `booking_id`, `changes` (dict de mudanças) | Reserva atualizada |
+| `booking.cancelled` | `booking_id`, `cancellation_reason`, `cancelled_by` | Reserva cancelada |
+| `booking.status_changed` | `booking_id`, `old_status`, `new_status` | Status alterado |
+
+#### Consumer Groups Implementados
+
+**user-service** (consome `booking-events`)
+- `handle_booking_created`: Processa novas reservas para envio de notificações
+- `handle_booking_cancelled`: Gerencia cancelamentos e notificações
+- `handle_booking_status_changed`: Reage a mudanças de status
+
+**resource-service** (consome `booking-events`)
+- `handle_booking_created`: Atualiza métricas e invalida cache de disponibilidade
+- `handle_booking_cancelled`: Libera slots e atualiza estatísticas
+- `handle_booking_updated`: Reprocessa disponibilidade se horário mudou
+
+#### Vantagens da Arquitetura
+
+✅ **Desacoplamento**: Booking Service não precisa conhecer consumers  
+✅ **Escalabilidade**: Múltiplos workers no mesmo consumer group  
+✅ **Confiabilidade**: Consumer groups garantem processamento único  
+✅ **Recuperação**: Mensagens pendentes são reprocessadas no startup  
+✅ **Rastreabilidade**: Logs estruturados de cada evento processado  
+
+#### Monitoramento
+
+```bash
+# Total de eventos publicados
+docker exec redis redis-cli XLEN booking-events
+
+# Status dos consumer groups
+docker exec redis redis-cli XINFO GROUPS booking-events
+
+# Mensagens pendentes (não processadas)
+docker exec redis redis-cli XPENDING booking-events user-service
+
+# Ver últimos eventos
+docker exec redis redis-cli XRANGE booking-events - + COUNT 10
+
+# Logs de consumers
+docker logs user 2>&1 | grep -i "event\|booking"
+docker logs resource 2>&1 | grep -i "event\|booking"
+```
+
+#### Extensibilidade
+
+Para adicionar novos consumers:
+
+1. Registre handlers em `app/main.py`:
+```python
+from shared import EventConsumer
+
+consumer = EventConsumer(
+    redis_url=os.getenv("REDIS_URL"),
+    stream_name="booking-events",
+    group_name="meu-servico",
+    consumer_name="worker-1"
+)
+
+async def handle_booking_created(event_data: dict):
+    logger.info(f"Processando: {event_data}")
+    # sua lógica aqui
+
+consumer.register_handler("booking.created", handle_booking_created)
+```
+
+2. Inicie consumer no lifespan:
+```python
+@asynccontextmanager
+async def app_lifespan(app: FastAPI):
+    consumer_task = asyncio.create_task(consumer.start())
+    yield
+    await consumer.stop()
+    consumer_task.cancel()
+```
+
 ### Testes automatizados
 - `pytest` configurado para cada serviço com bancos SQLite isolados.
 - **Booking**: ciclo completo de reservas, conflitos de horário, validações de janelas de antecedência/cancelamento e flag `can_cancel`.
@@ -230,12 +329,14 @@ O pipeline de CI executa automaticamente as seguintes etapas em cada Pull Reques
 - [ ] **Lint e formatação**: Adicionar `ruff` ou `black + isort + flake8` em pre-commit hooks e CI.
 
 #### 🟢 Funcionalidades e Evolução
-- [ ] **Consumidores de eventos**: Implementar workers para processar Redis Streams (notificações por email/SMS, webhooks, audit trail).
+- [x] **Consumidores de eventos**: Implementado com Redis Streams e Consumer Groups. User e Resource services já consomem eventos de booking para notificações e métricas.
+- [ ] **Notificações por email/SMS**: Integrar com provedor externo (SendGrid, Twilio) nos handlers de eventos.
+- [ ] **Audit trail**: Criar consumer dedicado para persistir histórico completo de eventos em banco separado.
+- [ ] **Webhooks para tenants**: Permitir configuração de URLs para receber eventos via HTTP POST.
 - [ ] **Autenticação centralizada**: Adicionar serviço de auth com JWT (access + refresh tokens), scopes por tenant e middleware de validação.
 - [ ] **Cache Redis**: Cachear `OrganizationSettings` e disponibilidade de recursos com TTL configurável.
 - [ ] **Recurring bookings**: Implementar lógica de recorrência usando `recurring_pattern` (diário, semanal, mensal).
 - [ ] **Relatórios e analytics**: Endpoints de estatísticas (taxa de ocupação, bookings por categoria, cancelamentos) respeitando políticas do tenant.
-- [ ] **Webhooks configuráveis**: Permitir tenants registrarem URLs para receber notificações de eventos (booking.created, booking.cancelled).
 - [ ] **Soft delete aprimorado**: Unificar estratégia de exclusão lógica (usar `deleted_at` timestamp em vez de múltiplos `is_active`).
 
 #### 🛠️ Melhorias Técnicas

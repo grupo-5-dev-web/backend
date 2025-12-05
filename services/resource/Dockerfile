@@ -11,7 +11,7 @@ COPY services/resource/alembic.ini /srv/resource/alembic.ini
 COPY services/resource/alembic /srv/resource/alembic
 COPY services/resource/tests /srv/resource/tests
 
-RUN pip install --no-cache-dir fastapi uvicorn psycopg2-binary sqlalchemy redis python-dotenv email-validator alembic httpx pytest pytest-cov httpx
+RUN pip install --no-cache-dir fastapi uvicorn psycopg2-binary sqlalchemy redis[asyncio] python-dotenv email-validator alembic httpx pytest pytest-cov
 
 ENV PYTHONPATH="/srv:/srv/resource"
 

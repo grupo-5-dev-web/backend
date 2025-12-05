@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 from html import escape
 
 from fastapi import FastAPI
@@ -8,7 +9,21 @@ from fastapi.responses import HTMLResponse
 from app.core.database import Base, engine
 from app.models import resource as resource_models
 from app.routers import categories, resources
-from shared import database_lifespan_factory, default_settings_provider, load_service_config
+from shared import database_lifespan_factory, default_settings_provider, load_service_config, EventConsumer
+from app.consumers import (
+    handle_booking_created,
+    handle_booking_cancelled,
+    handle_booking_updated,
+)
+import asyncio
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 tags_metadata = [
     {
@@ -24,12 +39,52 @@ tags_metadata = [
 _CONFIG = load_service_config("resource")
 _ROOT_PATH = os.getenv("APP_ROOT_PATH", "")
 
-lifespan = database_lifespan_factory(
-    service_name="Resource Service",
-    metadata=Base.metadata,
-    engine=engine,
-    models=(resource_models.ResourceCategory, resource_models.Resource),
-)
+# Consumer instance
+_consumer: EventConsumer = None
+_consumer_task = None
+
+
+@asynccontextmanager
+async def app_lifespan(app: FastAPI):
+    """Combined lifespan with database and event consumer."""
+    global _consumer, _consumer_task
+    
+    # Database startup
+    logger.info("Starting Resource Service...")
+    Base.metadata.create_all(bind=engine)
+    
+    # Start event consumer
+    if _CONFIG.redis.url:
+        _consumer = EventConsumer(
+            redis_url=_CONFIG.redis.url,
+            stream_name="booking-events",
+            group_name="resource-service",
+            consumer_name="resource-worker-1",
+        )
+        
+        # Register event handlers
+        _consumer.register_handler("booking.created", handle_booking_created)
+        _consumer.register_handler("booking.cancelled", handle_booking_cancelled)
+        _consumer.register_handler("booking.updated", handle_booking_updated)
+        
+        # Start consumer in background
+        _consumer_task = asyncio.create_task(_consumer.start())
+        logger.info("Event consumer started")
+    
+    yield
+    
+    # Cleanup
+    if _consumer:
+        await _consumer.stop()
+        if _consumer_task:
+            _consumer_task.cancel()
+            try:
+                await _consumer_task
+            except asyncio.CancelledError:
+                pass
+    logger.info("Resource Service stopped")
+
+lifespan = app_lifespan
 
 app = FastAPI(
     title="Resource Service",
