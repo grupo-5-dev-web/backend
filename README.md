@@ -239,12 +239,13 @@ consumer.register_handler("booking.created", handle_booking_created)
 
 2. Inicie consumer no lifespan:
 ```python
+from shared import cleanup_consumer
+
 @asynccontextmanager
 async def app_lifespan(app: FastAPI):
     consumer_task = asyncio.create_task(consumer.start())
     yield
-    await consumer.stop()
-    consumer_task.cancel()
+    await cleanup_consumer(consumer, consumer_task, logger)
 ```
 
 ### Testes automatizados
