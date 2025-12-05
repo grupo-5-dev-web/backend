@@ -87,21 +87,29 @@ async def create_booking(
         if str(usuario_data["tenant_id"]) != str(payload.tenant_id):
             raise HTTPException(400, "Usuário não pertence ao Tenant informado")
 
-        # validar contra availability_schedule do recurso
+        # validar contra availability_schedule do recurso (novo formato)
         schedule = recurso_data.get("availability_schedule", {})
         weekday = start_local.weekday()  # 0 = Monday
-        weekday_key = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"][weekday]
+        
+        # Novo formato: {"schedule": [{"day_of_week": 0, "start_time": "09:00", "end_time": "17:00"}]}
+        schedule_list = schedule.get("schedule", [])
+        allowed_entries = [entry for entry in schedule_list if entry.get("day_of_week") == weekday]
 
-        allowed_ranges = schedule.get(weekday_key, [])
-
-        if not allowed_ranges:
+        if not allowed_entries:
             raise HTTPException(400, "Recurso indisponível neste dia da semana.")
 
         valid = False
-        for rng in allowed_ranges:
-            start_raw, end_raw = rng.split("-")
-            r_start = datetime.combine(start_local.date(), time.fromisoformat(start_raw), tzinfo=zone)
-            r_end = datetime.combine(start_local.date(), time.fromisoformat(end_raw), tzinfo=zone)
+        for entry in allowed_entries:
+            r_start = datetime.combine(
+                start_local.date(), 
+                time.fromisoformat(entry["start_time"]), 
+                tzinfo=zone
+            )
+            r_end = datetime.combine(
+                start_local.date(), 
+                time.fromisoformat(entry["end_time"]), 
+                tzinfo=zone
+            )
 
             # o intervalo pedido precisa CABER dentro de algum range permitido
             if start_local >= r_start and end_local <= r_end:

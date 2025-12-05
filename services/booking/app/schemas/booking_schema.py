@@ -6,10 +6,11 @@ from app.models.booking import BookingStatus
 
 
 class RecurringPattern(BaseModel):
-    frequency: str = Field(pattern="^(daily|weekly|monthly)$")
-    interval: int = Field(ge=1, le=52, default=1)
-    end_date: Optional[datetime] = None
-    days_of_week: Optional[list[int]] = Field(default=None)
+    """Padrão de recorrência para reservas repetitivas."""
+    frequency: str = Field(pattern="^(daily|weekly|monthly)$", description="Frequência da recorrência: daily, weekly ou monthly")
+    interval: int = Field(ge=1, le=52, default=1, description="Intervalo entre ocorrências (ex: a cada 2 semanas)")
+    end_date: Optional[datetime] = Field(default=None, description="Data final da recorrência")
+    days_of_week: Optional[list[int]] = Field(default=None, description="Dias da semana para recorrência semanal (0=Segunda, 6=Domingo)")
 
     @field_validator("days_of_week")
     @classmethod
@@ -22,15 +23,25 @@ class RecurringPattern(BaseModel):
 
 
 class BookingBase(BaseModel):
-    tenant_id: UUID
-    resource_id: UUID
-    user_id: UUID
-    client_id: Optional[UUID] = None
-    start_time: datetime
-    end_time: datetime
-    notes: Optional[str] = None
-    recurring_enabled: bool = False
-    recurring_pattern: Optional[RecurringPattern] = None
+    """Schema base para reservas."""
+    tenant_id: UUID = Field(description="ID do tenant (organização)")
+    resource_id: UUID = Field(description="ID do recurso a ser reservado")
+    user_id: UUID = Field(description="ID do usuário responsável pela reserva")
+    client_id: Optional[UUID] = Field(default=None, description="ID do cliente/beneficiário da reserva (pode ser diferente do user_id)")
+    start_time: datetime = Field(description="Data/hora de início da reserva no formato ISO 8601 com timezone (ex: 2025-12-05T14:00:00-03:00 ou 2025-12-05T17:00:00Z). IMPORTANTE: se enviar sem timezone, será interpretado como UTC.")
+    end_time: datetime = Field(description="Data/hora de término da reserva no formato ISO 8601 com timezone (ex: 2025-12-05T15:00:00-03:00 ou 2025-12-05T18:00:00Z). IMPORTANTE: se enviar sem timezone, será interpretado como UTC.")
+    notes: Optional[str] = Field(default=None, description="Observações sobre a reserva")
+    recurring_enabled: bool = Field(default=False, description="Se true, cria reservas recorrentes")
+    recurring_pattern: Optional[RecurringPattern] = Field(default=None, description="Padrão de recorrência (obrigatório se recurring_enabled=true)")
+
+    @field_validator("start_time", "end_time")
+    @classmethod
+    def ensure_timezone_aware(cls, value: datetime) -> datetime:
+        """Garante que datetime sempre tem timezone. Se não tiver, assume UTC."""
+        if value.tzinfo is None:
+            from datetime import timezone
+            value = value.replace(tzinfo=timezone.utc)
+        return value
 
     @field_validator("end_time")
     @classmethod
@@ -42,7 +53,8 @@ class BookingBase(BaseModel):
 
 
 class BookingCreate(BookingBase):
-    status: Optional[str] = Field(default=BookingStatus.PENDING)
+    """Schema para criação de nova reserva. Valida regras de antecedência, horário comercial e conflitos."""
+    status: Optional[str] = Field(default=BookingStatus.PENDING, description="Status inicial da reserva (pendente, confirmado, cancelado)")
 
     @field_validator("status")
     @classmethod
@@ -53,14 +65,15 @@ class BookingCreate(BookingBase):
 
 
 class BookingUpdate(BaseModel):
-    resource_id: Optional[UUID] = None
-    client_id: Optional[UUID] = None
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
-    notes: Optional[str] = None
-    status: Optional[str] = Field(default=None)
-    recurring_enabled: Optional[bool] = None
-    recurring_pattern: Optional[RecurringPattern] = None
+    """Schema para atualização parcial de reserva existente."""
+    resource_id: Optional[UUID] = Field(default=None, description="Novo recurso (validará conflitos)")
+    client_id: Optional[UUID] = Field(default=None, description="Atualizar cliente/beneficiário")
+    start_time: Optional[datetime] = Field(default=None, description="Nova data/hora de início")
+    end_time: Optional[datetime] = Field(default=None, description="Nova data/hora de término")
+    notes: Optional[str] = Field(default=None, description="Atualizar observações")
+    status: Optional[str] = Field(default=None, description="Atualizar status da reserva")
+    recurring_enabled: Optional[bool] = Field(default=None, description="Habilitar/desabilitar recorrência")
+    recurring_pattern: Optional[RecurringPattern] = Field(default=None, description="Atualizar padrão de recorrência")
 
     @field_validator("status")
     @classmethod
@@ -79,43 +92,48 @@ class BookingUpdate(BaseModel):
 
 
 class BookingOut(BaseModel):
-    id: UUID
-    tenant_id: UUID
-    resource_id: UUID
-    user_id: UUID
-    client_id: Optional[UUID]
-    start_time: datetime
-    end_time: datetime
-    status: str
-    notes: Optional[str]
-    confirmation_code: Optional[str]
-    recurring_enabled: bool
-    recurring_pattern: Optional[Dict[str, Any]]
-    cancellation_reason: Optional[str]
-    cancelled_at: Optional[datetime]
-    cancelled_by: Optional[UUID]
-    created_at: datetime
-    updated_at: datetime
+    """Representação completa de uma reserva com todos os campos."""
+    id: UUID = Field(description="ID único da reserva")
+    tenant_id: UUID = Field(description="ID do tenant")
+    resource_id: UUID = Field(description="ID do recurso reservado")
+    user_id: UUID = Field(description="ID do usuário que criou a reserva")
+    client_id: Optional[UUID] = Field(description="ID do cliente/beneficiário")
+    start_time: datetime = Field(description="Data/hora de início")
+    end_time: datetime = Field(description="Data/hora de término")
+    status: str = Field(description="Status atual: pendente, confirmado, cancelado, concluido")
+    notes: Optional[str] = Field(description="Observações da reserva")
+    confirmation_code: Optional[str] = Field(description="Código de confirmação único")
+    recurring_enabled: bool = Field(description="Se é uma reserva recorrente")
+    recurring_pattern: Optional[Dict[str, Any]] = Field(description="Padrão de recorrência aplicado")
+    cancellation_reason: Optional[str] = Field(description="Motivo do cancelamento")
+    cancelled_at: Optional[datetime] = Field(description="Data/hora do cancelamento")
+    cancelled_by: Optional[UUID] = Field(description="ID do usuário que cancelou")
+    created_at: datetime = Field(description="Data/hora de criação do registro")
+    updated_at: datetime = Field(description="Data/hora da última atualização")
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class BookingCancelRequest(BaseModel):
-    reason: Optional[str] = Field(default=None, max_length=500)
+    """Requisição de cancelamento de reserva."""
+    reason: Optional[str] = Field(default=None, max_length=500, description="Motivo do cancelamento (opcional)")
 
 
 class BookingConflict(BaseModel):
-    booking_id: UUID
-    start_time: datetime
-    end_time: datetime
+    """Representa uma reserva conflitante."""
+    booking_id: UUID = Field(description="ID da reserva conflitante")
+    start_time: datetime = Field(description="Início da reserva conflitante")
+    end_time: datetime = Field(description="Término da reserva conflitante")
 
 
 class BookingConflictResponse(BaseModel):
-    success: bool
-    error: str
-    message: str
-    conflicts: list[BookingConflict]
+    """Resposta de erro quando há conflito de horário (HTTP 409)."""
+    success: bool = Field(description="Sempre false para conflitos")
+    error: str = Field(description="Tipo do erro: 'conflict'")
+    message: str = Field(description="Mensagem descritiva do conflito")
+    conflicts: list[BookingConflict] = Field(description="Lista de reservas conflitantes")
 
 
 class BookingWithPolicy(BookingOut):
-    can_cancel: bool
+    """BookingOut estendido com informações de política de cancelamento."""
+    can_cancel: bool = Field(description="Se a reserva pode ser cancelada baseado na janela de cancelamento do tenant")

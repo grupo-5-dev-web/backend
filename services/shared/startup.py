@@ -21,7 +21,7 @@ async def database_lifespan(
     models: Sequence[object] | None = None,
     retries: int = 10,
     wait_seconds: float = 2.0,
-) -> None:
+):
     """Ensure database tables exist before the service starts handling requests."""
     for attempt in range(retries):
         try:

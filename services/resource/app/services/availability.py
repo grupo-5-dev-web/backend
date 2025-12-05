@@ -101,10 +101,9 @@ def _collect_existing_bookings(
 
     base_url = os.getenv("BOOKING_SERVICE_URL")
     if not base_url:
-        print("[BOOKINGS] BOOKING_SERVICE_URL NÃO CONFIGURADA")
         return []
 
-    url = f"{base_url.rstrip('/')}/"
+    url = f"{base_url.rstrip('/')}/bookings/"
     params = {
         "tenant_id": str(tenant_id),
         "resource_id": str(resource_id),
@@ -112,15 +111,10 @@ def _collect_existing_bookings(
         "end_date": end.isoformat(),
     }
 
-    print("[BOOKINGS] Chamando:", url, "params=", params)
-
     try:
         response = httpx.get(url, params=params, timeout=2.0)
-        print("[BOOKINGS] status:", response.status_code)
-        print("[BOOKINGS] body:", response.text)
         response.raise_for_status()
-    except Exception as e:
-        print("[BOOKINGS] ERRO AO CONSULTAR:", repr(e))
+    except Exception:
         return []
 
     data = response.json()
@@ -131,7 +125,6 @@ def _collect_existing_bookings(
         end_dt = datetime.fromisoformat(item["end_time"].replace("Z", "+00:00"))
         bookings.append((start_dt, end_dt))
 
-    print("[BOOKINGS] bookings encontrados:", bookings)
     return bookings
 
 
@@ -172,8 +165,17 @@ def compute_availability(
             f"Consultas de disponibilidade limitadas a {settings.advance_booking_days} dias de antecedência.",
         )
 
-    weekday_key = _WEEKDAY_KEYS[target_date.weekday()]
-    daily_schedule = (resource.availability_schedule or {}).get(weekday_key, [])
+    # Suporta o novo formato com schedule array
+    availability_data = resource.availability_schedule or {}
+    schedule_list = availability_data.get("schedule", [])
+    
+    # Filtrar entradas para o dia da semana correto (0=segunda, 6=domingo)
+    target_weekday = target_date.weekday()
+    daily_schedule = [
+        entry for entry in schedule_list 
+        if entry.get("day_of_week") == target_weekday
+    ]
+    
     if not daily_schedule:
         return {
             "resource_id": str(resource.id),
@@ -195,7 +197,9 @@ def compute_availability(
 
     slots: List[AvailabilitySlot] = []
     for entry in daily_schedule:
-        start_time, end_time = _parse_schedule_entry(entry)
+        # No novo formato, start_time e end_time já estão como campos separados
+        start_time = time.fromisoformat(entry["start_time"])
+        end_time = time.fromisoformat(entry["end_time"])
         slots.extend(_generate_slots(target_date, start_time, end_time, settings))
 
     filtered_slots = [slot.model_dump() for slot in slots if not _is_slot_conflicted(slot, bookings)]

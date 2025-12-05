@@ -31,7 +31,12 @@ def _resource_payload(tenant_id: str, category_id: str):
         "capacity": 10,
         "location": "Andar 1",
         "attributes": {"has_projector": True},
-        "availability_schedule": {"monday": ["09:00-18:00"]},
+        "availability_schedule": {
+            "timezone": "UTC",
+            "schedule": [
+                {"day_of_week": 0, "start_time": "09:00", "end_time": "18:00"}  # Monday
+            ]
+        },
     }
 
 

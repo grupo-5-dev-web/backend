@@ -55,7 +55,7 @@ def _build_settings(payload: dict) -> OrganizationSettings:
 def default_settings_provider(tenant_id: UUID) -> OrganizationSettings:
     base_url = os.getenv("TENANT_SERVICE_URL")
     if base_url:
-        url = f"{base_url.rstrip('/')}/{tenant_id}/settings"
+        url = f"{base_url.rstrip('/')}/tenants/{tenant_id}/settings"
         try:
             response = httpx.get(url, timeout=2.0)
             response.raise_for_status()
