@@ -47,7 +47,7 @@ def _parse_schedule_entry(entry: str) -> tuple[time, time]:
         start_raw, end_raw = entry.split("-", maxsplit=1)
         start_time = time.fromisoformat(start_raw)
         end_time = time.fromisoformat(end_raw)
-    except ValueError as exc:  # pragma: no cover - proteção de dados inválidos
+    except ValueError as exc:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Disponibilidade inválida configurada.") from exc
     if end_time <= start_time:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Intervalo de disponibilidade inválido.")
@@ -60,10 +60,10 @@ def _generate_slots(
     end_time: time,
     settings: OrganizationSettings,
 ) -> Iterable[AvailabilitySlot]:
+
     tz_name = settings.timezone
     zone = ensure_timezone(datetime.combine(base_day, time.min), tz_name).tzinfo or timezone.utc
 
-    # Alinhar com janelas de trabalho do tenant
     work_start = datetime.combine(base_day, settings.working_hours_start, tzinfo=zone)
     work_end = datetime.combine(base_day, settings.working_hours_end, tzinfo=zone)
 
@@ -82,7 +82,6 @@ def _generate_slots(
     now_boundary = datetime.now(zone)
 
     cursor = slot_start
-    # Garantir alinhamento com o intervalo do tenant
     remainder = (cursor - work_start) % interval
     if remainder:
         cursor += interval - remainder
@@ -99,41 +98,49 @@ def _collect_existing_bookings(
     start: datetime,
     end: datetime,
 ) -> List[tuple[datetime, datetime]]:
+
     base_url = os.getenv("BOOKING_SERVICE_URL")
     if not base_url:
+        print("[BOOKINGS] BOOKING_SERVICE_URL NÃO CONFIGURADA")
         return []
 
-    url = f"{base_url.rstrip('/')}/bookings/"
+    url = f"{base_url.rstrip('/')}/"
     params = {
         "tenant_id": str(tenant_id),
         "resource_id": str(resource_id),
         "start_date": start.isoformat(),
         "end_date": end.isoformat(),
     }
+
+    print("[BOOKINGS] Chamando:", url, "params=", params)
+
     try:
         response = httpx.get(url, params=params, timeout=2.0)
+        print("[BOOKINGS] status:", response.status_code)
+        print("[BOOKINGS] body:", response.text)
         response.raise_for_status()
-    except Exception:
+    except Exception as e:
+        print("[BOOKINGS] ERRO AO CONSULTAR:", repr(e))
         return []
 
+    data = response.json()
+
     bookings = []
-    for item in response.json():
-        try:
-            start = datetime.fromisoformat(item["start_time"])
-            end = datetime.fromisoformat(item["end_time"])
-            if start.tzinfo is None:
-                start = start.replace(tzinfo=timezone.utc)
-            if end.tzinfo is None:
-                end = end.replace(tzinfo=timezone.utc)
-            bookings.append((start, end))
-        except (KeyError, ValueError):
-            continue
+    for item in data:
+        start_dt = datetime.fromisoformat(item["start_time"].replace("Z", "+00:00"))
+        end_dt = datetime.fromisoformat(item["end_time"].replace("Z", "+00:00"))
+        bookings.append((start_dt, end_dt))
+
+    print("[BOOKINGS] bookings encontrados:", bookings)
     return bookings
 
 
-def _is_slot_conflicted(slot: AvailabilitySlot, bookings: List[tuple[datetime, datetime]]) -> bool:
-    for start, end in bookings:
-        if start < slot.end and end > slot.start:
+def _is_slot_conflicted(slot, bookings):
+    slot_start_utc = slot.start.astimezone(timezone.utc)
+    slot_end_utc = slot.end.astimezone(timezone.utc)
+
+    for booking_start, booking_end in bookings:
+        if booking_start < slot_end_utc and booking_end > slot_start_utc:
             return True
     return False
 
@@ -145,6 +152,7 @@ def compute_availability(
     resource_id: UUID,
     target_date: date,
 ) -> dict:
+
     resource = crud.buscar_recurso(db_session, resource_id)
     if not resource:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Recurso não encontrado")
@@ -175,8 +183,14 @@ def compute_availability(
             "slots": [],
         }
 
-    day_start = ensure_timezone(datetime.combine(target_date, time.min, tzinfo=timezone.utc), settings.timezone)
-    day_end = ensure_timezone(datetime.combine(target_date, time.max, tzinfo=timezone.utc), settings.timezone)
+    local_zone = ensure_timezone(datetime.now(timezone.utc), settings.timezone).tzinfo
+
+    day_start_local = datetime.combine(target_date, time.min, tzinfo=local_zone)
+    day_end_local = datetime.combine(target_date, time.max, tzinfo=local_zone)
+
+    day_start = day_start_local.astimezone(timezone.utc)
+    day_end = day_end_local.astimezone(timezone.utc)
+
     bookings = _collect_existing_bookings(resource.tenant_id, resource.id, day_start, day_end)
 
     slots: List[AvailabilitySlot] = []
