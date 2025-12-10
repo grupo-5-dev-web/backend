@@ -1,4 +1,7 @@
+import asyncio
+import logging
 import os
+from contextlib import asynccontextmanager
 from html import escape
 
 from fastapi import FastAPI
@@ -6,9 +9,21 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse
 
 from app.core.database import Base, engine
-from app.models import user as user_models
 from app.routers import users
-from shared import database_lifespan_factory, load_service_config
+from shared import load_service_config, EventConsumer, cleanup_consumer
+from app.consumers import (
+    handle_booking_created,
+    handle_booking_cancelled,
+    handle_booking_status_changed,
+)
+
+# Configure logging only if not already configured
+if not logging.root.handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+logger = logging.getLogger(__name__)
 
 tags_metadata = [
     {
@@ -20,12 +35,55 @@ tags_metadata = [
 _CONFIG = load_service_config("user")
 _ROOT_PATH = os.getenv("APP_ROOT_PATH", "")
 
-lifespan = database_lifespan_factory(
-    service_name="User Service",
-    metadata=Base.metadata,
-    engine=engine,
-    models=(user_models.User,),
-)
+# Consumer instance
+_consumer: EventConsumer | None = None
+_consumer_task: asyncio.Task | None = None
+
+
+@asynccontextmanager
+async def app_lifespan(app: FastAPI):
+    """Combined lifespan with database and event consumer."""
+    global _consumer, _consumer_task
+    
+    # Database startup with retries
+    logger.info("Starting User Service...")
+    for attempt in range(10):
+        try:
+            await asyncio.to_thread(Base.metadata.create_all, bind=engine)
+            break
+        except Exception as e:
+            if attempt < 9:
+                logger.warning(f"Database unavailable, retrying... attempt {attempt + 1}: {e}")
+                await asyncio.sleep(2.0)
+            else:
+                logger.error("Database unavailable after 10 attempts, giving up.")
+                raise
+    
+    # Start event consumer
+    if _CONFIG.redis.url:
+        _consumer = EventConsumer(
+            redis_url=_CONFIG.redis.url,
+            stream_name="booking-events",
+            group_name="user-service",
+            consumer_name="user-worker-1",
+        )
+        
+        # Register event handlers
+        _consumer.register_handler("booking.created", handle_booking_created)
+        _consumer.register_handler("booking.cancelled", handle_booking_cancelled)
+        _consumer.register_handler("booking.status_changed", handle_booking_status_changed)
+        
+        # Start consumer in background
+        _consumer_task = asyncio.create_task(_consumer.start())
+        logger.info("Event consumer started")
+    
+    yield
+    
+    # Cleanup using shared helper
+    await cleanup_consumer(_consumer, _consumer_task, logger)
+    logger.info("User Service stopped")
+
+lifespan = app_lifespan
 
 app = FastAPI(
     title="User Service",

@@ -2,6 +2,7 @@
 
 from .config import ServiceConfig, load_service_config
 from .messaging import EventPublisher
+from .event_consumer import EventConsumer, cleanup_consumer
 from .organization import (
     OrganizationSettings,
     SettingsProvider,
@@ -19,6 +20,8 @@ __all__ = [
     "ServiceConfig",
     "load_service_config",
     "EventPublisher",
+    "EventConsumer",
+    "cleanup_consumer",
     "OrganizationSettings",
     "SettingsProvider",
     "default_settings_provider",
