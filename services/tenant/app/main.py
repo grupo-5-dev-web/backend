@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse
 from app.core.database import Base, engine
 from app.models import tenant as tenant_models
 from app.routers import endpoints as tenants
-from shared import database_lifespan_factory, load_service_config
+from shared import database_lifespan_factory, load_service_config, EventPublisher
 
 tags_metadata = [
     {
@@ -20,6 +20,13 @@ tags_metadata = [
 
 _CONFIG = load_service_config("tenant")
 _ROOT_PATH = os.getenv("APP_ROOT_PATH") or ""
+
+# Event Publisher for tenant.deleted events (only if Redis is configured)
+_EVENT_PUBLISHER = (
+    EventPublisher(_CONFIG.redis.url, "deletion-events")
+    if isinstance(_CONFIG.redis.url, str) and _CONFIG.redis.url.strip()
+    else None
+)
 
 IS_TEST = os.getenv("PYTEST_CURRENT_TEST") is not None
 
@@ -42,6 +49,7 @@ app = FastAPI(
 )
 
 app.state.config = _CONFIG
+app.state.event_publisher = _EVENT_PUBLISHER
 
 
 def custom_openapi_schema():

@@ -87,13 +87,14 @@ async def create_booking(
         if str(usuario_data["tenant_id"]) != str(payload.tenant_id):
             raise HTTPException(400, "Usuário não pertence ao Tenant informado")
 
-        # validar contra availability_schedule do recurso (novo formato)
+        # validar contra availability_schedule do recurso
         schedule = recurso_data.get("availability_schedule", {})
         weekday = start_local.weekday()  # 0 = Monday
         
-        # Novo formato: {"schedule": [{"day_of_week": 0, "start_time": "09:00", "end_time": "17:00"}]}
-        schedule_list = schedule.get("schedule", [])
-        allowed_entries = [entry for entry in schedule_list if entry.get("day_of_week") == weekday]
+        # Formato: {"monday": [{"start": "06:00", "end": "22:00"}], "tuesday": [...], ...}
+        weekday_names = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        day_name = weekday_names[weekday]
+        allowed_entries = schedule.get(day_name, [])
 
         if not allowed_entries:
             raise HTTPException(400, "Recurso indisponível neste dia da semana.")
@@ -102,12 +103,12 @@ async def create_booking(
         for entry in allowed_entries:
             r_start = datetime.combine(
                 start_local.date(), 
-                time.fromisoformat(entry["start_time"]), 
+                time.fromisoformat(entry["start"]), 
                 tzinfo=zone
             )
             r_end = datetime.combine(
                 start_local.date(), 
-                time.fromisoformat(entry["end_time"]), 
+                time.fromisoformat(entry["end"]), 
                 tzinfo=zone
             )
 
