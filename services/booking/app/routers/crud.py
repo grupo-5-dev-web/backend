@@ -176,44 +176,47 @@ def update_booking(
     return booking
 
 
-def cancel_booking(
+def delete_booking(
     db: Session,
     booking_id: UUID,
-    cancelled_by: UUID,
-    reason: Optional[str],
+    deleted_by: UUID,
     publisher: Optional[EventPublisher] = None,
-) -> Optional[Booking]:
-    booking = get_booking(db, booking_id)
+):
+    booking = db.query(Booking).filter(Booking.id == booking_id).first()
     if not booking:
-        return None
+        return False
 
-    booking.status = BookingStatus.CANCELLED
-    booking.cancelled_at = datetime.now(timezone.utc)
-    booking.cancelled_by = cancelled_by
-    booking.cancellation_reason = reason
-
+    # cria evento
     event = BookingEvent(
         booking_id=booking.id,
         tenant_id=booking.tenant_id,
-        event_type="booking.cancelled",
-        payload={"reason": reason, "cancelled_by": str(cancelled_by)},
+        event_type="booking.deleted",
+        payload={
+            "booking_id": str(booking.id),
+            "deleted_by": str(deleted_by),
+            "start_time": booking.start_time.isoformat(),
+            "end_time": booking.end_time.isoformat(),
+        },
     )
     db.add(event)
 
+    db.delete(booking)
     db.commit()
-    db.refresh(booking)
 
+    # publica evento
     _publish_event(
         publisher,
-        "booking.cancelled",
+        "booking.deleted",
         {
             "booking_id": str(booking.id),
-            "cancelled_by": str(cancelled_by),
-            "reason": reason,
+            "deleted_by": str(deleted_by),
+            "start_time": booking.start_time.isoformat(),
+            "end_time": booking.end_time.isoformat(),
         },
         tenant_id=booking.tenant_id,
     )
-    return booking
+
+    return True
 
 
 def update_booking_status(

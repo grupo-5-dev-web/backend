@@ -2,8 +2,8 @@ from datetime import datetime, timezone, time
 from shared import ensure_timezone
 from typing import List, Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
 from app.services.tenant_validator import validar_tenant_existe
@@ -282,7 +282,7 @@ def update_booking(
     return updated
 
 
-@router.patch("/{booking_id}/cancel", response_model=BookingOut)
+@router.delete("/{booking_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)
 def cancel_booking(
     booking_id: UUID,
     cancel_payload: BookingCancelRequest,
@@ -297,9 +297,20 @@ def cancel_booking(
     settings_provider = resolve_settings_provider(request.app.state)
     settings = settings_provider(booking.tenant_id)
     validate_cancellation_window(booking.start_time, settings)
-
+    
     publisher = getattr(request.app.state, "event_publisher", None)
-    return crud.cancel_booking(db, booking_id, cancelled_by, cancel_payload.reason, publisher=publisher)
+
+    deleted = crud.delete_booking(
+        db=db,
+        booking_id=booking_id,
+        deleted_by=cancelled_by,
+        publisher=publisher,
+    )
+
+    if not deleted:
+        raise HTTPException(404, "Reserva não encontrada")
+    
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.patch("/{booking_id}/status", response_model=BookingOut)
