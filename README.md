@@ -304,12 +304,12 @@ async def app_lifespan(app: FastAPI):
 
 ### Testes automatizados
 - `pytest` configurado para cada serviço com bancos SQLite isolados.
-- **Booking**: ciclo completo de reservas, conflitos de horário, validações de janelas de antecedência/cancelamento e flag `can_cancel`.
-- **Resource**: fluxo CRUD de categorias e recursos, cálculo de disponibilidade com slots e bloqueio de conflitos.
+- **Booking**: ciclo completo de reservas, conflitos de horário, validações de janelas de antecedência/cancelamento, flag `can_cancel` e testes de handlers de cascata (resource.deleted, user.deleted, tenant.deleted).
+- **Resource**: fluxo CRUD de categorias e recursos, cálculo de disponibilidade com slots, bloqueio de conflitos e teste de handler tenant.deleted.
 - **Tenant**: configurações organizacionais, validações de horário comercial e labels customizadas.
-- **User**: criação multi-tenant, permissões e validações de email.
-- **Event Consumers**: testes de handlers de eventos (user e resource services), processamento de mensagens e graceful shutdown.
-- **Deletion Consumers**: testes de cascata de deleções via eventos (resource.deleted, user.deleted, tenant.deleted).
+- **User**: criação multi-tenant, permissões, validações de email e teste de handler tenant.deleted.
+- **Event Consumers**: testes de handlers de eventos (booking.created, booking.cancelled, booking.status_changed).
+- **Deletion Consumers**: testes completos de cascata via eventos - 11 testes cobrindo todos os cenários de deleção.
 - **Shared**: testes do EventConsumer, EventPublisher e utilitários compartilhados.
 - Executar toda a suíte: `.venv/bin/pytest`
 - Executar serviço específico: `.venv/bin/pytest services/booking/tests`
@@ -388,7 +388,8 @@ O pipeline de CI executa automaticamente as seguintes etapas em cada Pull Reques
 - [ ] **Lint e formatação**: Adicionar `ruff` ou `black + isort + flake8` em pre-commit hooks e CI.
 
 #### 🟢 Funcionalidades e Evolução
-- [x] **Consumidores de eventos**: Implementado com Redis Streams e Consumer Groups. User e Resource services já consomem eventos de booking para notificações e métricas.
+- [x] **Consumidores de eventos**: Implementado com Redis Streams e Consumer Groups. User e Resource services consomem eventos de booking. Booking service consome eventos de deleção (resource.deleted, user.deleted, tenant.deleted).
+- [x] **Cascata de deleções via eventos**: Sistema completo implementado - ao deletar tenant/user/resource, eventos são propagados e consumers executam deleções em cascata automaticamente.
 - [ ] **Notificações por email/SMS**: Integrar com provedor externo (SendGrid, Twilio) nos handlers de eventos.
 - [ ] **Audit trail**: Criar consumer dedicado para persistir histórico completo de eventos em banco separado.
 - [ ] **Webhooks para tenants**: Permitir configuração de URLs para receber eventos via HTTP POST.
@@ -397,6 +398,7 @@ O pipeline de CI executa automaticamente as seguintes etapas em cada Pull Reques
 - [ ] **Recurring bookings**: Implementar lógica de recorrência usando `recurring_pattern` (diário, semanal, mensal).
 - [ ] **Relatórios e analytics**: Endpoints de estatísticas (taxa de ocupação, bookings por categoria, cancelamentos) respeitando políticas do tenant.
 - [ ] **Soft delete aprimorado**: Unificar estratégia de exclusão lógica (usar `deleted_at` timestamp em vez de múltiplos `is_active`).
+- [x] **Correção do availability_schedule**: Bug corrigido no booking service - formato do schedule era `{"monday": [...]}` mas o código procurava por `{"schedule": [...]}`. Agora bookings podem ser criadas corretamente respeitando a disponibilidade dos recursos.
 
 #### 🛠️ Melhorias Técnicas
 - [ ] **Requirements files**: Criar `requirements.txt` por serviço (substituir `RUN pip install` inline nos Dockerfiles).

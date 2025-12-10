@@ -40,13 +40,14 @@ async def test_handle_tenant_deleted_deletes_all_users():
         
         user_ids = [user1.id, user2.id, user3.id]
         
-    # Processar evento
-    payload = {"tenant_id": str(tenant_id)}
-    await handle_tenant_deleted("tenant.deleted", payload)        # Verificar que TODOS os usuários foram deletados
+        # Processar evento
+        payload = {"tenant_id": str(tenant_id)}
+        await handle_tenant_deleted("tenant.deleted", payload)
+        
+        # Verificar que TODOS os usuários foram deletados
         for user_id in user_ids:
             result = db.query(User).filter(User.id == user_id).first()
             assert result is None, f"User {user_id} deveria ter sido deletado"
-    
     finally:
         db.close()
 

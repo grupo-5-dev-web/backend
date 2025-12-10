@@ -46,19 +46,21 @@ async def test_handle_resource_deleted_cancels_bookings():
         db.add_all([booking1, booking2, booking3])
         db.commit()
         
-    # Processar evento
-    payload = {"resource_id": str(resource_id), "tenant_id": str(tenant_id)}
-    await handle_resource_deleted("resource.deleted", payload)        # Verificar que apenas as ativas foram canceladas
+        # Processar evento
+        payload = {"resource_id": str(resource_id), "tenant_id": str(tenant_id)}
+        await handle_resource_deleted("resource.deleted", payload)
+
+        # Verificar que apenas as ativas foram canceladas
         db.refresh(booking1)
         db.refresh(booking2)
         db.refresh(booking3)
-        
+
         assert booking1.status == BookingStatus.CANCELLED
         assert "Recurso deletado" in booking1.cancellation_reason
         assert booking2.status == BookingStatus.CANCELLED
         assert "Recurso deletado" in booking2.cancellation_reason
         assert booking3.status == BookingStatus.CANCELLED  # já estava cancelada
-        
+
         # Cleanup
         db.delete(booking1)
         db.delete(booking2)
@@ -98,17 +100,19 @@ async def test_handle_user_deleted_cancels_bookings():
         db.add_all([booking1, booking2])
         db.commit()
         
-    # Processar evento
-    payload = {"user_id": str(user_id), "tenant_id": str(tenant_id)}
-    await handle_user_deleted("user.deleted", payload)        # Verificar que foram canceladas
+        # Processar evento
+        payload = {"user_id": str(user_id), "tenant_id": str(tenant_id)}
+        await handle_user_deleted("user.deleted", payload)
+
+        # Verificar que foram canceladas
         db.refresh(booking1)
         db.refresh(booking2)
-        
+
         assert booking1.status == BookingStatus.CANCELLED
         assert "Usuário deletado" in booking1.cancellation_reason
         assert booking2.status == BookingStatus.CANCELLED
         assert "Usuário deletado" in booking2.cancellation_reason
-        
+
         # Cleanup
         db.delete(booking1)
         db.delete(booking2)
@@ -155,9 +159,11 @@ async def test_handle_tenant_deleted_deletes_all_bookings():
         
         booking_ids = [booking1.id, booking2.id, booking3.id]
         
-    # Processar evento
-    payload = {"tenant_id": str(tenant_id)}
-    await handle_tenant_deleted("tenant.deleted", payload)        # Verificar que TODAS foram deletadas
+        # Processar evento
+        payload = {"tenant_id": str(tenant_id)}
+        await handle_tenant_deleted("tenant.deleted", payload)
+
+        # Verificar que TODAS foram deletadas
         for booking_id in booking_ids:
             result = db.query(Booking).filter(Booking.id == booking_id).first()
             assert result is None, f"Booking {booking_id} deveria ter sido deletada"

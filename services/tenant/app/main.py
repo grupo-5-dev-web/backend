@@ -22,7 +22,11 @@ _CONFIG = load_service_config("tenant")
 _ROOT_PATH = os.getenv("APP_ROOT_PATH") or ""
 
 # Event Publisher for tenant.deleted events (only if Redis is configured)
-_EVENT_PUBLISHER = EventPublisher(_CONFIG.redis.url, "deletion-events") if _CONFIG.redis.url else None
+_EVENT_PUBLISHER = (
+    EventPublisher(_CONFIG.redis.url, "deletion-events")
+    if isinstance(_CONFIG.redis.url, str) and _CONFIG.redis.url.strip()
+    else None
+)
 
 IS_TEST = os.getenv("PYTEST_CURRENT_TEST") is not None
 
