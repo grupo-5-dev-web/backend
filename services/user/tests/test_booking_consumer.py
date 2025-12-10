@@ -12,7 +12,7 @@ from app.consumers.booking_consumer import (
 class TestUserServiceBookingHandlers:
     """Tests for the user service booking event handlers."""
     
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_handle_booking_created(self):
         """Test the user service booking created handler."""
         payload = {
@@ -25,7 +25,7 @@ class TestUserServiceBookingHandlers:
         # Should not raise
         await handle_booking_created("booking.created", payload)
     
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_handle_booking_cancelled(self):
         """Test the user service booking cancelled handler."""
         payload = {
@@ -37,7 +37,7 @@ class TestUserServiceBookingHandlers:
         # Should not raise
         await handle_booking_cancelled("booking.cancelled", payload)
     
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_handle_booking_status_changed(self):
         """Test the user service booking status changed handler."""
         payload = {
