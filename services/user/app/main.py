@@ -36,8 +36,8 @@ tags_metadata = [
 _CONFIG = load_service_config("user")
 _ROOT_PATH = os.getenv("APP_ROOT_PATH", "")
 
-# Event Publisher for user.deleted events
-_EVENT_PUBLISHER = EventPublisher(_CONFIG.redis.url, "deletion-events")
+# Event Publisher for user.deleted events (only if Redis is configured)
+_EVENT_PUBLISHER = EventPublisher(_CONFIG.redis.url, "deletion-events") if _CONFIG.redis.url else None
 
 # Consumer instances
 _booking_consumer: EventConsumer | None = None

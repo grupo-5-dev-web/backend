@@ -31,7 +31,7 @@ tags_metadata = [
 
 _CONFIG = load_service_config("booking")
 _ROOT_PATH = os.getenv("APP_ROOT_PATH", "")
-_EVENT_PUBLISHER = EventPublisher(_CONFIG.redis.url, _CONFIG.redis.stream)
+_EVENT_PUBLISHER = EventPublisher(_CONFIG.redis.url, _CONFIG.redis.stream) if _CONFIG.redis.url else None
 
 # Consumer instance
 _consumer: EventConsumer | None = None
