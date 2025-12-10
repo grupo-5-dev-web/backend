@@ -24,7 +24,7 @@ def login(
     if not user or not verify_password(password, user.password_hash):
         raise HTTPException(status_code=401, detail="Email ou senha inválidos")
 
-    token = criar_token_jwt(user_id=user.id, tenant_id=user.tenant_id)
+    token = criar_token_jwt(user_id=user.id, tenant_id=user.tenant_id, user_type=user.user_type,)
 
     return {"access_token": token, "token_type": "bearer"}
 

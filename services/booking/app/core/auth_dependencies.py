@@ -12,6 +12,7 @@ JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS512")
 class TokenPayload(BaseModel):
     sub: UUID
     tenant_id: UUID
+    user_type: str
 
 def get_current_token(
     token: str = Depends(oauth2_scheme),
