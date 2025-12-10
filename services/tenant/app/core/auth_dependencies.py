@@ -4,7 +4,6 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from pydantic import BaseModel, ValidationError
-from app.core.security import SECRET_KEY, JWT_ALGORITHM  # mesmo esquema que você já usa
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
@@ -13,6 +12,7 @@ JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS512")
 class TokenPayload(BaseModel):
     sub: UUID
     tenant_id: UUID
+    user_type: str
 
 def get_current_token(
     token: str = Depends(oauth2_scheme),

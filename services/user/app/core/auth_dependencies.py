@@ -16,6 +16,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
 class TokenPayload(BaseModel):
     sub: UUID
     tenant_id: UUID
+    user_type: str
 
 def get_current_user(
     token: str = Depends(oauth2_scheme),

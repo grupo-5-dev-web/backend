@@ -32,13 +32,11 @@ async def criar_recurso(
 
     tenant_service_url = request.app.state.tenant_service_url
 
-    # --- Validação do Tenant (com bypass automático em pytest) ---
     await validar_tenant_existe(
         tenant_service_url,
         str(recurso.tenant_id)
     )
 
-    # --- Categoria precisa existir no próprio serviço ---
     categoria = crud.buscar_categoria(db, recurso.category_id)
     if not categoria:
         raise HTTPException(status_code=404, detail="Categoria não encontrada")
