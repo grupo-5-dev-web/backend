@@ -2,6 +2,7 @@
 
 import logging
 from typing import Dict, Any
+from uuid import UUID
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.models.booking import Booking, BookingStatus
@@ -15,18 +16,14 @@ async def handle_resource_deleted(payload: Dict[str, Any]) -> None:
     Cancela todas as reservas ativas daquele recurso.
     """
     resource_id = payload.get("resource_id")
-    tenant_id = payload.get("tenant_id")
     
     if not resource_id:
         logger.warning("Evento resource.deleted sem resource_id")
         return
     
     # Converter string para UUID
-    from uuid import UUID
     if isinstance(resource_id, str):
         resource_id = UUID(resource_id)
-    if isinstance(tenant_id, str):
-        tenant_id = UUID(tenant_id)
     
     db: Session = SessionLocal()
     try:
@@ -64,18 +61,14 @@ async def handle_user_deleted(payload: Dict[str, Any]) -> None:
     Cancela todas as reservas do usuário.
     """
     user_id = payload.get("user_id")
-    tenant_id = payload.get("tenant_id")
     
     if not user_id:
         logger.warning("Evento user.deleted sem user_id")
         return
     
     # Converter string para UUID
-    from uuid import UUID
     if isinstance(user_id, str):
         user_id = UUID(user_id)
-    if isinstance(tenant_id, str):
-        tenant_id = UUID(tenant_id)
     
     db: Session = SessionLocal()
     try:
@@ -119,7 +112,6 @@ async def handle_tenant_deleted(payload: Dict[str, Any]) -> None:
         return
     
     # Converter string para UUID
-    from uuid import UUID
     if isinstance(tenant_id, str):
         tenant_id = UUID(tenant_id)
     
