@@ -50,6 +50,7 @@ backend/
 
 ### Fluxos implementados
 - **Regras de agendamento**: provider compartilhado (`services/shared/organization.py`) recupera `OrganizationSettings` do serviço de tenant (HTTP via `httpx`) ou usa defaults. CRUD de bookings verifica horário útil, antecipação máxima, duração múltipla do intervalo e janela de cancelamento.
+- **Timezone handling**: cada tenant configura seu timezone (ex: `America/Sao_Paulo`). Horários de entrada (API) sem timezone são interpretados como horário local do tenant. Banco armazena tudo em UTC. Validações (horário comercial, disponibilidade) usam timezone do tenant. Cliente pode enviar horários em qualquer timezone (ISO 8601) e o sistema converte automaticamente.
 - **Política de cancelamento**: listagens de reservas (`GET /bookings/`) incluem `can_cancel` calculado dinamicamente, refletindo a janela configurada pelo tenant.
 - **Disponibilidade de recursos**: `GET /resources/{id}/availability` monta slots alinhados ao expediente e intervalo do tenant, consulta o serviço de bookings via `BOOKING_SERVICE_URL` para bloquear conflitos e responde com timezone normalizado.
 - **Detecção de conflitos**: ao criar ou atualizar reservas, o sistema verifica se já existe booking aprovado/pendente no mesmo recurso e horário, retornando status 409 com lista de conflitos.
@@ -215,6 +216,11 @@ docker logs user 2>&1 | grep -i "event\|booking"
 docker logs resource 2>&1 | grep -i "event\|booking"
 ```
 
+#### Documentação Detalhada
+
+Para documentação técnica completa sobre a arquitetura event-driven, consulte:
+- **[docs/EVENT_ARCHITECTURE.md](docs/EVENT_ARCHITECTURE.md)**: Guia completo com componentes, fluxos, monitoramento, troubleshooting e boas práticas.
+
 #### Extensibilidade
 
 Para adicionar novos consumers:
@@ -261,8 +267,11 @@ async def app_lifespan(app: FastAPI):
 - **Resource**: fluxo CRUD de categorias e recursos, cálculo de disponibilidade com slots e bloqueio de conflitos.
 - **Tenant**: configurações organizacionais, validações de horário comercial e labels customizadas.
 - **User**: criação multi-tenant, permissões e validações de email.
+- **Event Consumers**: testes de handlers de eventos (user e resource services), processamento de mensagens e graceful shutdown.
+- **Shared**: testes do EventConsumer, EventPublisher e utilitários compartilhados.
 - Executar toda a suíte: `.venv/bin/pytest`
 - Executar serviço específico: `.venv/bin/pytest services/booking/tests`
+- Testes usam `@pytest.mark.anyio` para funções async (consistência com FastAPI/anyio)
 
 ### Startup compartilhado
 - Utilitário `shared.startup.database_lifespan_factory` registra lifespan async com tentativas e logs para criação de tabelas.
