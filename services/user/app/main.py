@@ -17,8 +17,6 @@ from app.consumers import (
     handle_booking_status_changed,
 )
 from app.deletion_consumers import handle_tenant_deleted
-import asyncio
-import logging
 
 # Configure logging only if not already configured
 if not logging.root.handlers:

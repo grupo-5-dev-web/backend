@@ -1,7 +1,7 @@
 """Tests for deletion event consumers in booking service."""
 
 import pytest
-from uuid import uuid4, UUID
+from uuid import uuid4
 from datetime import datetime, timezone
 from app.consumers import handle_resource_deleted, handle_user_deleted, handle_tenant_deleted
 from app.models.booking import Booking, BookingStatus

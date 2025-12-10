@@ -7,7 +7,6 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse
 
 from app.core.database import Base, engine
-from app.models import booking as booking_models
 from app.routers import bookings
 from app.services.organization import default_settings_provider
 from app.consumers import handle_resource_deleted, handle_user_deleted, handle_tenant_deleted
