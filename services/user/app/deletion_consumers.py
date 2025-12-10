@@ -2,6 +2,7 @@
 
 import logging
 from typing import Dict, Any
+from uuid import UUID
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.models.user import User
@@ -21,7 +22,6 @@ async def handle_tenant_deleted(payload: Dict[str, Any]) -> None:
         return
     
     # Converter string para UUID
-    from uuid import UUID
     if isinstance(tenant_id, str):
         tenant_id = UUID(tenant_id)
     
