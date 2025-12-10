@@ -53,7 +53,7 @@ async def app_lifespan(app: FastAPI):
     logger.info("Starting Resource Service...")
     for attempt in range(10):
         try:
-            Base.metadata.create_all(bind=engine)
+            await asyncio.to_thread(Base.metadata.create_all, bind=engine)
             break
         except Exception as e:
             if attempt < 9:

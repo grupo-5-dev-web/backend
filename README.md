@@ -170,9 +170,9 @@ O sistema implementa comunicação assíncrona baseada em eventos usando **Redis
 
 | Evento | Payload | Quando |
 |--------|---------|--------|
-| `booking.created` | `booking_id`, `status`, `start_time`, `end_time` | Nova reserva criada |
-| `booking.updated` | `booking_id`, `changes` (dict de mudanças) | Reserva atualizada |
-| `booking.cancelled` | `booking_id`, `cancellation_reason`, `cancelled_by` | Reserva cancelada |
+| `booking.created` | `booking_id`, `user_id`, `resource_id`, `status`, `start_time`, `end_time` | Nova reserva criada |
+| `booking.updated` | `booking_id`, `resource_id`, `changes` (dict de mudanças) | Reserva atualizada |
+| `booking.cancelled` | `booking_id`, `resource_id`, `reason`, `cancelled_by` | Reserva cancelada |
 | `booking.status_changed` | `booking_id`, `old_status`, `new_status` | Status alterado |
 
 #### Consumer Groups Implementados
@@ -221,7 +221,11 @@ Para adicionar novos consumers:
 
 1. Registre handlers em `app/main.py`:
 ```python
+import os
+import logging
 from shared import EventConsumer
+
+logger = logging.getLogger(__name__)
 
 consumer = EventConsumer(
     redis_url=os.getenv("REDIS_URL"),
@@ -239,6 +243,9 @@ consumer.register_handler("booking.created", handle_booking_created)
 
 2. Inicie consumer no lifespan:
 ```python
+import asyncio
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
 from shared import cleanup_consumer
 
 @asynccontextmanager

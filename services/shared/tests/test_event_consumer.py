@@ -57,14 +57,14 @@ class TestEventConsumer:
         assert consumer._group_name == "test-group"
         assert consumer._consumer_name == "test-worker-1"
     
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_stop_sets_running_to_false(self, consumer):
         """Test that stop() sets _running to False."""
         consumer._running = True
         await consumer.stop()
         assert consumer._running is False
     
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_start_returns_early_if_already_running(self, consumer):
         """Test that start() returns early if consumer is already running."""
         consumer._running = True
@@ -93,7 +93,7 @@ class TestProcessMessage:
         consumer._client = AsyncMock()
         return consumer
     
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_process_message_with_handler(self, consumer_with_mock_redis):
         """Test that messages with registered handlers are processed and acknowledged."""
         consumer = consumer_with_mock_redis
@@ -127,7 +127,7 @@ class TestProcessMessage:
             message_id,
         )
     
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_process_message_without_handler(self, consumer_with_mock_redis):
         """Test that messages without handlers are acknowledged to prevent infinite pending queue."""
         consumer = consumer_with_mock_redis
@@ -148,7 +148,7 @@ class TestProcessMessage:
             message_id,
         )
     
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_process_message_handles_utf8_message_id(self, consumer_with_mock_redis):
         """Test that UTF-8 message IDs are decoded correctly."""
         consumer = consumer_with_mock_redis
@@ -172,7 +172,7 @@ class TestProcessMessage:
         
         assert handler_called
     
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_process_message_handles_handler_exception(self, consumer_with_mock_redis):
         """Test that handler exceptions are caught and logged without crashing."""
         consumer = consumer_with_mock_redis
@@ -203,13 +203,13 @@ class TestCleanupConsumer:
         """Create a mock logger."""
         return MagicMock(spec=logging.Logger)
     
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_cleanup_with_none_consumer(self, mock_logger):
         """Test cleanup when consumer is None."""
         # Should not raise
         await cleanup_consumer(None, None, mock_logger)
     
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_cleanup_stops_consumer(self, mock_logger):
         """Test that cleanup stops the consumer."""
         mock_consumer = AsyncMock()
@@ -220,7 +220,7 @@ class TestCleanupConsumer:
         
         mock_consumer.stop.assert_called_once()
     
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_cleanup_handles_stop_error(self, mock_logger):
         """Test that cleanup handles errors when stopping consumer."""
         mock_consumer = AsyncMock()
@@ -234,7 +234,7 @@ class TestCleanupConsumer:
         # Should log the warning
         mock_logger.warning.assert_called()
     
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_cleanup_waits_for_task(self, mock_logger):
         """Test that cleanup waits for task to complete."""
         mock_consumer = AsyncMock()
@@ -245,7 +245,7 @@ class TestCleanupConsumer:
         
         mock_consumer.stop.assert_called_once()
     
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_cleanup_cancels_task_on_timeout(self, mock_logger):
         """Test that cleanup cancels task if it doesn't stop in time."""
         mock_consumer = AsyncMock()
@@ -262,7 +262,7 @@ class TestCleanupConsumer:
         # Task should be cancelled
         assert task.cancelled() or task.done()
     
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_cleanup_task_without_consumer(self, mock_logger):
         """Test that cleanup handles task even when consumer is None."""
         # Create a real task that won't complete
