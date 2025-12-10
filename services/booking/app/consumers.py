@@ -10,7 +10,7 @@ from app.models.booking import Booking, BookingStatus
 logger = logging.getLogger(__name__)
 
 
-async def handle_resource_deleted(payload: Dict[str, Any]) -> None:
+async def handle_resource_deleted(event_type: str, payload: Dict[str, Any]) -> None:
     """
     Handler para evento resource.deleted.
     Cancela todas as reservas ativas daquele recurso.
@@ -55,7 +55,7 @@ async def handle_resource_deleted(payload: Dict[str, Any]) -> None:
         db.close()
 
 
-async def handle_user_deleted(payload: Dict[str, Any]) -> None:
+async def handle_user_deleted(event_type: str, payload: Dict[str, Any]) -> None:
     """
     Handler para evento user.deleted.
     Cancela todas as reservas do usuário.
@@ -100,7 +100,7 @@ async def handle_user_deleted(payload: Dict[str, Any]) -> None:
         db.close()
 
 
-async def handle_tenant_deleted(payload: Dict[str, Any]) -> None:
+async def handle_tenant_deleted(event_type: str, payload: Dict[str, Any]) -> None:
     """
     Handler para evento tenant.deleted.
     Deleta TODAS as reservas do tenant (cascata total).

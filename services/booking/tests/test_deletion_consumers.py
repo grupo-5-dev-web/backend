@@ -46,11 +46,9 @@ async def test_handle_resource_deleted_cancels_bookings():
         db.add_all([booking1, booking2, booking3])
         db.commit()
         
-        # Processar evento
-        payload = {"resource_id": str(resource_id), "tenant_id": str(tenant_id)}
-        await handle_resource_deleted(payload)
-        
-        # Verificar que apenas as ativas foram canceladas
+    # Processar evento
+    payload = {"resource_id": str(resource_id), "tenant_id": str(tenant_id)}
+    await handle_resource_deleted("resource.deleted", payload)        # Verificar que apenas as ativas foram canceladas
         db.refresh(booking1)
         db.refresh(booking2)
         db.refresh(booking3)
@@ -100,11 +98,9 @@ async def test_handle_user_deleted_cancels_bookings():
         db.add_all([booking1, booking2])
         db.commit()
         
-        # Processar evento
-        payload = {"user_id": str(user_id), "tenant_id": str(tenant_id)}
-        await handle_user_deleted(payload)
-        
-        # Verificar que foram canceladas
+    # Processar evento
+    payload = {"user_id": str(user_id), "tenant_id": str(tenant_id)}
+    await handle_user_deleted("user.deleted", payload)        # Verificar que foram canceladas
         db.refresh(booking1)
         db.refresh(booking2)
         
@@ -159,11 +155,9 @@ async def test_handle_tenant_deleted_deletes_all_bookings():
         
         booking_ids = [booking1.id, booking2.id, booking3.id]
         
-        # Processar evento
-        payload = {"tenant_id": str(tenant_id)}
-        await handle_tenant_deleted(payload)
-        
-        # Verificar que TODAS foram deletadas
+    # Processar evento
+    payload = {"tenant_id": str(tenant_id)}
+    await handle_tenant_deleted("tenant.deleted", payload)        # Verificar que TODAS foram deletadas
         for booking_id in booking_ids:
             result = db.query(Booking).filter(Booking.id == booking_id).first()
             assert result is None, f"Booking {booking_id} deveria ter sido deletada"
@@ -177,7 +171,7 @@ async def test_handle_resource_deleted_no_bookings():
     payload = {"resource_id": str(uuid4()), "tenant_id": str(uuid4())}
     
     # Não deve lançar exceção
-    await handle_resource_deleted(payload)
+    await handle_resource_deleted("resource.deleted", payload)
 
 
 @pytest.mark.anyio
@@ -186,4 +180,4 @@ async def test_handle_resource_deleted_missing_resource_id():
     payload = {"tenant_id": str(uuid4())}
     
     # Não deve lançar exceção, apenas log warning
-    await handle_resource_deleted(payload)
+    await handle_resource_deleted("resource.deleted", payload)

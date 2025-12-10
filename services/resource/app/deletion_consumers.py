@@ -10,7 +10,7 @@ from app.models.resource import Resource, ResourceCategory
 logger = logging.getLogger(__name__)
 
 
-async def handle_tenant_deleted(payload: Dict[str, Any]) -> None:
+async def handle_tenant_deleted(event_type: str, payload: Dict[str, Any]) -> None:
     """
     Handler para evento tenant.deleted.
     Deleta TODOS os recursos e categorias daquele tenant.

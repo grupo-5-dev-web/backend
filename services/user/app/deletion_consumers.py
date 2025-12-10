@@ -10,7 +10,7 @@ from app.models.user import User
 logger = logging.getLogger(__name__)
 
 
-async def handle_tenant_deleted(payload: Dict[str, Any]) -> None:
+async def handle_tenant_deleted(event_type: str, payload: Dict[str, Any]) -> None:
     """
     Handler para evento tenant.deleted.
     Deleta TODOS os usuários daquele tenant.

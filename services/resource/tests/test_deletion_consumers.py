@@ -56,11 +56,9 @@ async def test_handle_tenant_deleted_deletes_resources_and_categories():
         resource_ids = [resource1.id, resource2.id, resource3.id]
         category_ids = [category1.id, category2.id]
         
-        # Processar evento
-        payload = {"tenant_id": str(tenant_id)}
-        await handle_tenant_deleted(payload)
-        
-        # Verificar que TODOS os recursos foram deletados
+    # Processar evento
+    payload = {"tenant_id": str(tenant_id)}
+    await handle_tenant_deleted("tenant.deleted", payload)        # Verificar que TODOS os recursos foram deletados
         for resource_id in resource_ids:
             result = db.query(Resource).filter(Resource.id == resource_id).first()
             assert result is None, f"Resource {resource_id} deveria ter sido deletado"
@@ -80,7 +78,7 @@ async def test_handle_tenant_deleted_no_resources():
     payload = {"tenant_id": str(uuid4())}
     
     # Não deve lançar exceção
-    await handle_tenant_deleted(payload)
+    await handle_tenant_deleted("tenant.deleted", payload)
 
 
 @pytest.mark.anyio
@@ -89,4 +87,4 @@ async def test_handle_tenant_deleted_missing_tenant_id():
     payload = {}
     
     # Não deve lançar exceção, apenas log warning
-    await handle_tenant_deleted(payload)
+    await handle_tenant_deleted("tenant.deleted", payload)
