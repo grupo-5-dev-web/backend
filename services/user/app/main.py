@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import os
 from contextlib import asynccontextmanager
 from html import escape
@@ -14,8 +16,6 @@ from app.consumers import (
     handle_booking_cancelled,
     handle_booking_status_changed,
 )
-import asyncio
-import logging
 
 # Configure logging only if not already configured
 if not logging.root.handlers:
