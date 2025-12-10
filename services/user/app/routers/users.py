@@ -72,8 +72,8 @@ def update_user(user_id: UUID, payload: UserUpdate, db: Session = Depends(get_db
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(user_id: UUID, db: Session = Depends(get_db)):
-    user = crud.delete_user(db, user_id)
+def delete_user(user_id: UUID, request: Request, db: Session = Depends(get_db)):
+    user = crud.delete_user(db, user_id, publisher=getattr(request.app.state, "event_publisher", None))
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
     return None

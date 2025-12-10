@@ -1,6 +1,6 @@
 from uuid import UUID
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.schemas.tenant_schema import (
@@ -42,8 +42,8 @@ def atualizar_tenant(tenant_id: UUID, tenant_update: TenantUpdate, db: Session =
 
 
 @router.delete("/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)
-def deletar_tenant(tenant_id: UUID, db: Session = Depends(get_db)):
-    tenant = crud.deletar_tenant(db, tenant_id)
+def deletar_tenant(tenant_id: UUID, request: Request, db: Session = Depends(get_db)):
+    tenant = crud.deletar_tenant(db, tenant_id, publisher=getattr(request.app.state, "event_publisher", None))
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant não encontrado")
     return None
