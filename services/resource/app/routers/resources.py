@@ -101,9 +101,10 @@ def atualizar_recurso(
 @router.delete("/{recurso_id}", status_code=status.HTTP_204_NO_CONTENT)
 def deletar_recurso(
     recurso_id: UUID,
+    request: Request,
     db: Session = Depends(get_db)
 ):
-    recurso = crud.deletar_recurso(db, recurso_id)
+    recurso = crud.deletar_recurso(db, recurso_id, publisher=getattr(request.app.state, "event_publisher", None))
     if not recurso:
         raise HTTPException(status_code=404, detail="Recurso não encontrado")
     return None

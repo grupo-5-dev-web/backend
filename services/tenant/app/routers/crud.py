@@ -62,11 +62,20 @@ def atualizar_tenant(db: Session, tenant_id: UUID, tenant_update: TenantUpdate):
     return tenant
 
 
-def deletar_tenant(db: Session, tenant_id: UUID):
+def deletar_tenant(db: Session, tenant_id: UUID, publisher=None):
     tenant = buscar_tenant(db, tenant_id)
-    if tenant:
-        db.delete(tenant)
-        db.commit()
+    if not tenant:
+        return None
+
+    # Publicar evento ANTES de deletar para outros serviços reagirem
+    if publisher:
+        payload = {
+            "tenant_id": str(tenant_id),
+        }
+        publisher.publish("tenant.deleted", payload)
+
+    db.delete(tenant)
+    db.commit()
     return tenant
 
 

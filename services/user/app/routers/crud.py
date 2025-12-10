@@ -86,10 +86,18 @@ def update_user(db: Session, user_id: UUID, payload: UserUpdate) -> Optional[Use
     return user
 
 
-def delete_user(db: Session, user_id: UUID) -> Optional[User]:
+def delete_user(db: Session, user_id: UUID, publisher=None) -> Optional[User]:
     user = get_user(db, user_id)
     if not user:
         return None
+
+    # Publicar evento ANTES de deletar para outros serviços reagirem
+    if publisher:
+        payload = {
+            "user_id": str(user_id),
+            "tenant_id": str(user.tenant_id),
+        }
+        publisher.publish("user.deleted", payload)
 
     db.delete(user)
     db.commit()

@@ -147,6 +147,20 @@ curl -X POST http://localhost:8000/bookings/ -H "Content-Type: application/json"
 # 7. Listar reservas do tenant
 curl "http://localhost:8000/bookings/?tenant_id=d49eccff-6586-44cc-b723-719f78a6f9f9"
 # Resposta: [{"id": "...", "can_cancel": false, ...}]
+
+# 8. Deletar recurso (cascata via evento resource.deleted)
+curl -X DELETE http://localhost:8000/resources/d4a90dee-9261-44df-a362-e6c12db591e2
+# → Booking service cancela automaticamente todas as reservas daquele recurso
+
+# 9. Deletar usuário (cascata via evento user.deleted)
+curl -X DELETE http://localhost:8000/users/6a899ad5-12bb-43ee-90ac-4d6f5091f6ae
+# → Booking service cancela automaticamente todas as reservas do usuário
+
+# 10. Deletar tenant (cascata via evento tenant.deleted)
+curl -X DELETE http://localhost:8000/tenants/d49eccff-6586-44cc-b723-719f78a6f9f9
+# → User service deleta todos os usuários do tenant
+# → Resource service deleta todos os recursos e categorias do tenant
+# → Booking service deleta todas as reservas do tenant
 ```
 
 ### Arquitetura Event-Driven com Redis Streams
@@ -167,7 +181,9 @@ O sistema implementa comunicação assíncrona baseada em eventos usando **Redis
 - Handlers registrados por tipo de evento
 - Graceful shutdown com cancelamento de tasks asyncio
 
-#### Eventos Publicados (Booking Service)
+#### Eventos Publicados
+
+**Stream: `booking-events`** (Booking Service)
 
 | Evento | Payload | Quando |
 |--------|---------|--------|
@@ -176,17 +192,37 @@ O sistema implementa comunicação assíncrona baseada em eventos usando **Redis
 | `booking.cancelled` | `booking_id`, `resource_id`, `reason`, `cancelled_by` | Reserva cancelada |
 | `booking.status_changed` | `booking_id`, `old_status`, `new_status` | Status alterado |
 
+**Stream: `deletion-events`** (Cascata de deleções)
+
+| Evento | Payload | Quando | Efeito |
+|--------|---------|--------|--------|
+| `resource.deleted` | `resource_id`, `tenant_id` | Recurso deletado | Cancela todas as reservas do recurso |
+| `user.deleted` | `user_id`, `tenant_id` | Usuário deletado | Cancela todas as reservas do usuário |
+| `tenant.deleted` | `tenant_id` | Tenant deletado | Deleta usuários, recursos, categorias e reservas |
+
 #### Consumer Groups Implementados
 
-**user-service** (consome `booking-events`)
-- `handle_booking_created`: Processa novas reservas para envio de notificações
-- `handle_booking_cancelled`: Gerencia cancelamentos e notificações
-- `handle_booking_status_changed`: Reage a mudanças de status
+**user-service**
+- Consome `booking-events`:
+  - `handle_booking_created`: Processa novas reservas para envio de notificações
+  - `handle_booking_cancelled`: Gerencia cancelamentos e notificações
+  - `handle_booking_status_changed`: Reage a mudanças de status
+- Consome `deletion-events`:
+  - `handle_tenant_deleted`: Deleta todos os usuários do tenant
 
-**resource-service** (consome `booking-events`)
-- `handle_booking_created`: Atualiza métricas e invalida cache de disponibilidade
-- `handle_booking_cancelled`: Libera slots e atualiza estatísticas
-- `handle_booking_updated`: Reprocessa disponibilidade se horário mudou
+**resource-service**
+- Consome `booking-events`:
+  - `handle_booking_created`: Atualiza métricas e invalida cache de disponibilidade
+  - `handle_booking_cancelled`: Libera slots e atualiza estatísticas
+  - `handle_booking_updated`: Reprocessa disponibilidade se horário mudou
+- Consome `deletion-events`:
+  - `handle_tenant_deleted`: Deleta recursos e categorias do tenant
+
+**booking-service**
+- Consome `deletion-events`:
+  - `handle_resource_deleted`: Cancela reservas do recurso deletado
+  - `handle_user_deleted`: Cancela reservas do usuário deletado
+  - `handle_tenant_deleted`: Deleta todas as reservas do tenant
 
 #### Vantagens da Arquitetura
 
@@ -201,19 +237,24 @@ O sistema implementa comunicação assíncrona baseada em eventos usando **Redis
 ```bash
 # Total de eventos publicados
 docker exec redis redis-cli XLEN booking-events
+docker exec redis redis-cli XLEN deletion-events
 
 # Status dos consumer groups
 docker exec redis redis-cli XINFO GROUPS booking-events
+docker exec redis redis-cli XINFO GROUPS deletion-events
 
 # Mensagens pendentes (não processadas)
 docker exec redis redis-cli XPENDING booking-events user-service
+docker exec redis redis-cli XPENDING deletion-events booking-service
 
 # Ver últimos eventos
 docker exec redis redis-cli XRANGE booking-events - + COUNT 10
+docker exec redis redis-cli XRANGE deletion-events - + COUNT 10
 
 # Logs de consumers
-docker logs user 2>&1 | grep -i "event\|booking"
-docker logs resource 2>&1 | grep -i "event\|booking"
+docker logs user 2>&1 | grep -i "event\|booking\|deletion"
+docker logs resource 2>&1 | grep -i "event\|booking\|deletion"
+docker logs booking 2>&1 | grep -i "event\|deletion"
 ```
 
 #### Documentação Detalhada
@@ -268,6 +309,7 @@ async def app_lifespan(app: FastAPI):
 - **Tenant**: configurações organizacionais, validações de horário comercial e labels customizadas.
 - **User**: criação multi-tenant, permissões e validações de email.
 - **Event Consumers**: testes de handlers de eventos (user e resource services), processamento de mensagens e graceful shutdown.
+- **Deletion Consumers**: testes de cascata de deleções via eventos (resource.deleted, user.deleted, tenant.deleted).
 - **Shared**: testes do EventConsumer, EventPublisher e utilitários compartilhados.
 - Executar toda a suíte: `.venv/bin/pytest`
 - Executar serviço específico: `.venv/bin/pytest services/booking/tests`

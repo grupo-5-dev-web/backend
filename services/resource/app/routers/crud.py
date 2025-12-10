@@ -137,10 +137,18 @@ def atualizar_recurso(
     return recurso
 
 
-def deletar_recurso(db: Session, recurso_id: UUID) -> Optional[Resource]:
+def deletar_recurso(db: Session, recurso_id: UUID, publisher=None) -> Optional[Resource]:
     recurso = buscar_recurso(db, recurso_id)
     if not recurso:
         return None
+
+    # Publicar evento ANTES de deletar para outros serviços reagirem
+    if publisher:
+        payload = {
+            "resource_id": str(recurso_id),
+            "tenant_id": str(recurso.tenant_id),
+        }
+        publisher.publish("resource.deleted", payload)
 
     db.delete(recurso)
     db.commit()
