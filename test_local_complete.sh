@@ -80,33 +80,7 @@ else
 fi
 echo ""
 
-echo "═══ 2. CRIAR CATEGORIA ═══"
-CATEGORY_DATA='{
-    "tenant_id": "'$TENANT_ID'",
-    "name": "Salas de Reunião Local",
-    "description": "Espaços para reuniões e conferências",
-    "type": "fisico",
-    "icon": "meeting_room",
-    "color": "#4CAF50"
-}'
-
-echo "➤ Criar Categoria"
-response=$(curl -s -w "\n%{http_code}" -X POST "$CATEGORY_URL/" -H "Content-Type: application/json" -d "$CATEGORY_DATA")
-http_code=$(echo "$response" | tail -n1)
-body=$(echo "$response" | sed '$d')
-CATEGORY_ID=$(echo "$body" | jq -r '.id // empty')
-
-if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ] && [ -n "$CATEGORY_ID" ]; then
-    echo -e "${GREEN}✓ $http_code${NC}"
-    echo -e "${BLUE}🆔 CATEGORY_ID: $CATEGORY_ID${NC}"
-else
-    echo -e "${RED}✗ $http_code${NC}"
-    echo "$body" | jq '.'
-    exit 1
-fi
-echo ""
-
-echo "═══ 3. CRIAR USUÁRIO ADMIN ═══"
+echo "═══ 2. CRIAR USUÁRIO ADMIN ═══"
 ADMIN_DATA='{
     "tenant_id": "'$TENANT_ID'",
     "name": "Admin User",
@@ -139,7 +113,7 @@ else
 fi
 echo ""
 
-echo "═══ 4. LOGIN ADMIN (obter JWT token) ═══"
+echo "═══ 3. LOGIN ADMIN (obter JWT token) ═══"
 echo "➤ Login com email: $ADMIN_EMAIL"
 response=$(curl -s -w "\n%{http_code}" -X POST "$USER_URL/login" \
     -H "Content-Type: application/x-www-form-urlencoded" \
@@ -158,7 +132,7 @@ else
 fi
 echo ""
 
-echo "═══ 5. TESTAR GET /users/me (usuário autenticado) ═══"
+echo "═══ 4. TESTAR GET /users/me (usuário autenticado) ═══"
 echo "➤ GET /users/me com token"
 response=$(curl -s -w "\n%{http_code}" -X GET "$USER_URL/me" \
     -H "Authorization: Bearer $ADMIN_TOKEN")
@@ -168,6 +142,35 @@ body=$(echo "$response" | sed '$d')
 if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
     echo -e "${GREEN}✓ $http_code${NC}"
     echo "$body" | jq '{id, name, email, user_type}'
+else
+    echo -e "${RED}✗ $http_code${NC}"
+    echo "$body" | jq '.'
+    exit 1
+fi
+echo ""
+
+echo "═══ 5. CRIAR CATEGORIA (requer admin) ═══"
+CATEGORY_DATA='{
+    "tenant_id": "'$TENANT_ID'",
+    "name": "Salas de Reunião Local",
+    "description": "Espaços para reuniões e conferências",
+    "type": "fisico",
+    "icon": "meeting_room",
+    "color": "#4CAF50"
+}'
+
+echo "➤ Criar Categoria com token admin"
+response=$(curl -s -w "\n%{http_code}" -X POST "$CATEGORY_URL/" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $ADMIN_TOKEN" \
+    -d "$CATEGORY_DATA")
+http_code=$(echo "$response" | tail -n1)
+body=$(echo "$response" | sed '$d')
+CATEGORY_ID=$(echo "$body" | jq -r '.id // empty')
+
+if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ] && [ -n "$CATEGORY_ID" ]; then
+    echo -e "${GREEN}✓ $http_code${NC}"
+    echo -e "${BLUE}🆔 CATEGORY_ID: $CATEGORY_ID${NC}"
 else
     echo -e "${RED}✗ $http_code${NC}"
     echo "$body" | jq '.'
