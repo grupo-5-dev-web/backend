@@ -62,7 +62,10 @@ def update_user(db: Session, user_id: UUID, payload: UserUpdate) -> Optional[Use
     update_data = payload.model_dump(exclude_unset=True)
 
     if "permissions" in update_data and update_data["permissions"] is not None:
-        update_data["permissions"] = update_data["permissions"].model_dump()
+        # Handle both Pydantic object and dict (already serialized)
+        if hasattr(update_data["permissions"], "model_dump"):
+            update_data["permissions"] = update_data["permissions"].model_dump()
+        # else: already a dict, keep as-is
     if "profile_metadata" in update_data and update_data["profile_metadata"] is None:
         update_data["profile_metadata"] = {}
 
