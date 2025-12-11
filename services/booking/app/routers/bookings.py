@@ -417,7 +417,7 @@ def update_booking(
     return updated
 
 
-@router.delete("/{booking_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)
+@router.patch("/{booking_id}/cancel", response_model=BookingOut)
 def cancel_booking(
     booking_id: UUID,
     cancel_payload: BookingCancelRequest,
@@ -454,17 +454,31 @@ def cancel_booking(
     
     publisher = getattr(request.app.state, "event_publisher", None)
 
-    deleted = crud.delete_booking(
-        db=db,
-        booking_id=booking_id,
-        deleted_by=current_token.sub,  # quem está cancelando
-        publisher=publisher,
-    )
+    # Atualizar booking para status cancelado e salvar informações do cancelamento
+    booking.status = "cancelado"
+    booking.cancellation_reason = cancel_payload.reason
+    booking.cancelled_by = current_token.sub
+    booking.cancelled_at = datetime.now(timezone.utc)
+    
+    db.commit()
+    db.refresh(booking)
+    
+    # Publicar evento de cancelamento
+    if publisher:
+        crud._publish_event(
+            publisher,
+            "booking.cancelled",
+            {
+                "booking_id": str(booking.id),
+                "resource_id": str(booking.resource_id),
+                "user_id": str(booking.user_id),
+                "cancelled_by": str(current_token.sub),
+                "reason": cancel_payload.reason,
+            },
+            tenant_id=booking.tenant_id,
+        )
 
-    if not deleted:
-        raise HTTPException(404, "Reserva não encontrada")
-
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return booking
 
 
 @router.patch("/{booking_id}/status", response_model=BookingOut)
