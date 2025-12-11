@@ -53,6 +53,7 @@ _test_tenant_id = None
 def override_get_current_token():
     return DummyToken(tenant_id=_test_tenant_id)
 
+
 def set_test_tenant_id(tenant_id):
     """Helper to set the tenant_id for the DummyToken in tests"""
     global _test_tenant_id

@@ -161,7 +161,12 @@ def update_booking(
         booking_id=booking.id,
         tenant_id=booking.tenant_id,
         event_type="booking.updated",
-        payload={"changed_fields": list(update_data.keys())},
+        payload={
+            "booking_id": str(booking.id),
+            "resource_id": str(booking.resource_id),
+            "user_id": str(booking.user_id),
+            "changed_fields": list(update_data.keys()),
+        },
     )
     db.add(event)
 
@@ -199,6 +204,8 @@ def delete_booking(
         event_type="booking.deleted",
         payload={
             "booking_id": str(booking.id),
+            "resource_id": str(booking.resource_id),
+            "user_id": str(booking.user_id),
             "deleted_by": str(deleted_by),
             "start_time": booking.start_time.isoformat(),
             "end_time": booking.end_time.isoformat(),
@@ -243,7 +250,12 @@ def update_booking_status(
         booking_id=booking.id,
         tenant_id=booking.tenant_id,
         event_type="booking.status_changed",
-        payload={"status": status},
+        payload={
+            "booking_id": str(booking.id),
+            "resource_id": str(booking.resource_id),
+            "user_id": str(booking.user_id),
+            "status": status,
+        },
     )
     db.add(event)
 
@@ -271,7 +283,23 @@ def cancel_booking(
     cancelled_by: UUID,
     publisher: Optional[EventPublisher] = None,
 ) -> Booking:
-    """Cancel a booking and create appropriate event records."""
+    """
+    Cancels a booking and creates appropriate event records in the database and via the event publisher.
+
+    Args:
+        db (Session): The SQLAlchemy database session to use for committing changes.
+        booking (Booking): The booking instance to be cancelled.
+        reason (str): The reason for cancelling the booking.
+        cancelled_by (UUID): The UUID of the user or system cancelling the booking.
+        publisher (Optional[EventPublisher]): Optional event publisher for publishing external events.
+
+    Returns:
+        Booking: The updated booking instance with cancellation details.
+
+    Raises:
+        sqlalchemy.exc.SQLAlchemyError: If a database error occurs during commit.
+        Exception: If publishing the event fails (depending on _publish_event implementation).
+    """
     # Update booking with cancellation details
     booking.status = BookingStatus.CANCELLED
     booking.cancellation_reason = reason
