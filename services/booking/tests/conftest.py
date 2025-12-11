@@ -1,11 +1,13 @@
 import os
 import sys
 from pathlib import Path
-
 import pytest
 from fastapi.testclient import TestClient
 from datetime import time, datetime, timedelta, timezone
 from jose import jwt
+
+SECRET_KEY = os.getenv("SECRET_KEY", "ci-test-secret")
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS512")
 
 def make_auth_headers(tenant_id: str, user_id: str, user_type: str = "user") -> dict:
     """
