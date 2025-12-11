@@ -4,7 +4,23 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from datetime import time
+from datetime import time, datetime, timedelta, timezone
+from jose import jwt
+
+def make_auth_headers(tenant_id: str, user_id: str, user_type: str = "user") -> dict:
+    """
+    Gera um JWT compatível com o TokenPayload do serviço de booking,
+    para ser usado nos headers dos testes.
+    """
+    exp = datetime.now(timezone.utc) + timedelta(hours=1)
+    payload = {
+        "sub": user_id,
+        "tenant_id": tenant_id,
+        "user_type": user_type,  # "user" ou "admin"
+        "exp": int(exp.timestamp()),
+    }
+    token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+    return {"Authorization": f"Bearer {token}"}
 
 SERVICE_DIR = Path(__file__).resolve().parents[1]
 ROOT_DIR = SERVICE_DIR.parent.parent

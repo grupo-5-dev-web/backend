@@ -3,6 +3,8 @@ from datetime import time
 from uuid import uuid4
 
 from fastapi import status
+
+from .conftest import make_auth_headers
 from app.services.organization import OrganizationSettings
 
 
@@ -31,40 +33,53 @@ def test_booking_lifecycle(client):
 
     start, end = _base_times()
 
+    # CREATE
     create_resp = client.post(
         "/bookings/",
         json=_booking_payload(tenant_id, resource_id, user_id, start, end),
+        headers=make_auth_headers(tenant_id, user_id, "user"),
     )
     assert create_resp.status_code == status.HTTP_201_CREATED
     booking = create_resp.json()
     booking_id = booking["id"]
     assert booking["status"] == "pendente"
 
-    list_resp = client.get("/bookings/", params={"tenant_id": tenant_id})
+    # LIST
+    list_resp = client.get(
+        "/bookings/",
+        params={"tenant_id": tenant_id},
+        headers=make_auth_headers(tenant_id, user_id, "user"),
+    )
     assert list_resp.status_code == status.HTTP_200_OK
     bookings = list_resp.json()
     assert len(bookings) == 1
     assert bookings[0]["can_cancel"] is True
 
+    # UPDATE
     update_resp = client.put(
         f"/bookings/{booking_id}",
         json={"notes": "Atualização de notas", "status": "confirmado"},
+        headers=make_auth_headers(tenant_id, user_id, "user"),
     )
     assert update_resp.status_code == status.HTTP_200_OK
     assert update_resp.json()["notes"] == "Atualização de notas"
     assert update_resp.json()["status"] == "confirmado"
 
+    # CHANGE STATUS
     status_resp = client.patch(
         f"/bookings/{booking_id}/status",
         params={"status_param": "concluido"},
+        headers=make_auth_headers(tenant_id, user_id, "user"),
     )
     assert status_resp.status_code == status.HTTP_200_OK
     assert status_resp.json()["status"] == "concluido"
 
+    # CANCEL
     cancel_resp = client.patch(
         f"/bookings/{booking_id}/cancel",
         params={"cancelled_by": str(uuid4())},
         json={"reason": "Cliente cancelou"},
+        headers=make_auth_headers(tenant_id, user_id, "user"),
     )
     assert cancel_resp.status_code == status.HTTP_200_OK
     cancelled = cancel_resp.json()
@@ -80,15 +95,26 @@ def test_booking_conflict_detection(client):
 
     start, end = _base_times()
 
+    # 1ª reserva
     first = client.post(
         "/bookings/",
         json=_booking_payload(tenant_id, resource_id, user_id, start, end),
+        headers=make_auth_headers(tenant_id, user_id, "user"),
     )
     assert first.status_code == status.HTTP_201_CREATED
 
+    # 2ª reserva em conflito, com outro usuário
+    conflict_user_id = str(uuid4())
     conflict = client.post(
         "/bookings/",
-        json=_booking_payload(tenant_id, resource_id, str(uuid4()), start + timedelta(minutes=30), end + timedelta(minutes=30)),
+        json=_booking_payload(
+            tenant_id,
+            resource_id,
+            conflict_user_id,
+            start + timedelta(minutes=30),
+            end + timedelta(minutes=30),
+        ),
+        headers=make_auth_headers(tenant_id, conflict_user_id, "user"),
     )
     assert conflict.status_code == status.HTTP_409_CONFLICT
     conflict_body = conflict.json()
@@ -96,6 +122,8 @@ def test_booking_conflict_detection(client):
     assert conflict_body["error"] == "conflict"
     assert len(conflict_body["conflicts"]) == 1
 
+    # 3ª reserva fora do intervalo de conflito, com outro usuário ainda
+    next_user_id = str(uuid4())
     next_start = end + timedelta(minutes=30)
     next_end = next_start + timedelta(hours=1)
     non_conflict = client.post(
@@ -103,10 +131,11 @@ def test_booking_conflict_detection(client):
         json=_booking_payload(
             tenant_id,
             resource_id,
-            str(uuid4()),
+            next_user_id,
             next_start,
             next_end,
         ),
+        headers=make_auth_headers(tenant_id, next_user_id, "user"),
     )
     assert non_conflict.status_code == status.HTTP_201_CREATED
 
@@ -123,6 +152,7 @@ def test_booking_outside_working_hours_returns_400(client):
     response = client.post(
         "/bookings/",
         json=_booking_payload(tenant_id, resource_id, user_id, late_start, late_end),
+        headers=make_auth_headers(tenant_id, user_id, "user"),
     )
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["detail"] == "Horário fora do expediente configurado."
@@ -152,6 +182,7 @@ def test_booking_respects_advance_window(client):
         response = client.post(
             "/bookings/",
             json=_booking_payload(tenant_id, resource_id, user_id, far_start, far_end),
+            headers=make_auth_headers(tenant_id, user_id, "user"),
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "dias de antecedência" in response.json()["detail"]
@@ -183,6 +214,7 @@ def test_cancel_booking_respects_cancellation_window(client):
         create_resp = client.post(
             "/bookings/",
             json=_booking_payload(tenant_id, resource_id, user_id, start, end),
+            headers=make_auth_headers(tenant_id, user_id, "user"),
         )
         assert create_resp.status_code == status.HTTP_201_CREATED
         booking_id = create_resp.json()["id"]
@@ -191,6 +223,7 @@ def test_cancel_booking_respects_cancellation_window(client):
             f"/bookings/{booking_id}/cancel",
             params={"cancelled_by": str(uuid4())},
             json={"reason": "Cliente desistiu"},
+            headers=make_auth_headers(tenant_id, user_id, "user"),
         )
         assert cancel_resp.status_code == status.HTTP_400_BAD_REQUEST
         assert "Cancelamento permitido" in cancel_resp.json()["detail"]
