@@ -70,7 +70,9 @@ jobs:
             alembic \
             httpx \
             pytest \
-            pytest-cov
+            pytest-cov \
+            "python-jose[cryptography]" \
+            "passlib[bcrypt]"
 
       - name: Run pytest with coverage for ${{ matrix.service }}
         working-directory: services
