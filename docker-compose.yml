@@ -23,6 +23,7 @@ services:
     container_name: user
     environment:
       - DATABASE_URL=postgresql://user:password@db_user:5432/userdb
+      - REDIS_URL=redis://redis:6379
       - TENANT_SERVICE_URL=http://tenant:8000
     depends_on:
       db_user:
@@ -41,6 +42,7 @@ services:
     hostname: tenant
     environment:
       - DATABASE_URL=postgresql://user:password@db_tenant:5432/tenantdb
+      - REDIS_URL=redis://redis:6379
     depends_on:
       db_tenant:
         condition: service_healthy
@@ -57,6 +59,7 @@ services:
     container_name: resource
     environment:
       - DATABASE_URL=postgresql://user:password@db_resource:5432/resourcedb
+      - REDIS_URL=redis://redis:6379
       - TENANT_SERVICE_URL=http://tenant:8000
       - BOOKING_SERVICE_URL=http://booking:8000
     depends_on:
@@ -75,6 +78,7 @@ services:
     container_name: booking
     environment:
       - DATABASE_URL=postgresql://user:password@db_booking:5432/bookingdb
+      - REDIS_URL=redis://redis:6379
       - TENANT_SERVICE_URL=http://tenant:8000
       - RESOURCE_SERVICE_URL=http://resource:8000
       - USER_SERVICE_URL=http://user:8000
