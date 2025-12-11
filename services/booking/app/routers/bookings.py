@@ -4,7 +4,7 @@ from shared import ensure_timezone
 from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.core.auth_dependencies import get_current_token, TokenPayload, oauth2_scheme
 from app.services.tenant_validator import validar_tenant_existe
