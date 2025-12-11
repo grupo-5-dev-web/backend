@@ -11,14 +11,14 @@ class CategoryCustomField(BaseModel):
 
 
 class ResourceCategoryBase(BaseModel):
-    tenant_id: UUID
-    name: str
-    description: Optional[str] = None
-    type: str = Field(..., pattern="^(fisico|humano)$")
-    icon: Optional[str] = None
-    color: Optional[str] = None
-    is_active: bool = True
-    category_metadata: Dict[str, Any] = Field(default_factory=dict)
+    tenant_id: UUID = Field(..., examples=["550e8400-e29b-41d4-a716-446655440000"])
+    name: str = Field(..., examples=["Sala de Reunião"])
+    description: Optional[str] = Field(default=None, examples=["Salas para reuniões e apresentações"])
+    type: str = Field(..., pattern="^(fisico|humano)$", examples=["fisico"])
+    icon: Optional[str] = Field(default=None, examples=["meeting_room"])
+    color: Optional[str] = Field(default=None, examples=["#3B82F6"])
+    is_active: bool = Field(default=True, examples=[True])
+    category_metadata: Dict[str, Any] = Field(default_factory=dict, examples=[{"requires_qualification": False}])
 
 
 class ResourceCategoryCreate(ResourceCategoryBase):
@@ -48,16 +48,16 @@ class ResourceCategoryOut(ResourceCategoryBase):
 
 
 class ResourceBase(BaseModel):
-    tenant_id: UUID
-    category_id: UUID
-    name: str
-    description: Optional[str] = None
-    status: str = Field(default="disponivel", pattern="^(disponivel|manutencao|indisponivel)$")
-    capacity: Optional[int] = Field(default=None, ge=1)
-    location: Optional[str] = None
-    attributes: Dict[str, Any] = Field(default_factory=dict)
-    availability_schedule: Dict[str, Any] = Field(default_factory=dict)
-    image_url: Optional[HttpUrl] = None
+    tenant_id: UUID = Field(..., examples=["550e8400-e29b-41d4-a716-446655440000"])
+    category_id: UUID = Field(..., examples=["660e8400-e29b-41d4-a716-446655440001"])
+    name: str = Field(..., examples=["Sala 101"])
+    description: Optional[str] = Field(default=None, examples=["Sala com capacidade para 10 pessoas"])
+    status: str = Field(default="disponivel", pattern="^(disponivel|manutencao|indisponivel)$", examples=["disponivel"])
+    capacity: Optional[int] = Field(default=None, ge=1, examples=[10])
+    location: Optional[str] = Field(default=None, examples=["1º andar, ala oeste"])
+    attributes: Dict[str, Any] = Field(default_factory=dict, examples=[{"projetor": True, "ar_condicionado": True}])
+    availability_schedule: Dict[str, Any] = Field(default_factory=dict, examples=[{"monday": ["09:00-18:00"], "friday": ["09:00-17:00"]}])
+    image_url: Optional[HttpUrl] = Field(default=None, examples=["https://exemplo.com/sala101.jpg"])
 
 
 class ResourceCreate(ResourceBase):

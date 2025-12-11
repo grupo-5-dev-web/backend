@@ -19,15 +19,15 @@ def _ensure_profile_metadata(data):
 
 
 class UserBase(BaseModel):
-    tenant_id: UUID
-    name: str
-    email: EmailStr
-    phone: Optional[str] = None
-    user_type: str = Field(pattern="^(admin|user)$")
-    department: Optional[str] = None
-    is_active: bool = True
-    permissions: Permissions = Permissions()
-    profile_metadata: Dict[str, Any] = Field(default_factory=dict)
+    tenant_id: UUID = Field(..., examples=["550e8400-e29b-41d4-a716-446655440000"])
+    name: str = Field(..., examples=["João Silva"])
+    email: EmailStr = Field(..., examples=["joao.silva@exemplo.com"])
+    phone: Optional[str] = Field(default=None, examples=["11987654321"])
+    user_type: str = Field(..., pattern="^(admin|user)$", examples=["user"])
+    department: Optional[str] = Field(default=None, examples=["Recursos Humanos"])
+    is_active: bool = Field(default=True, examples=[True])
+    permissions: Permissions = Field(default_factory=Permissions)
+    profile_metadata: Dict[str, Any] = Field(default_factory=dict, examples=[{"preferencia": "valor"}])
 
     @model_validator(mode="before")
     @classmethod
@@ -44,7 +44,7 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    password: Optional[str] = Field(default=None, min_length=8)
+    password: Optional[str] = Field(default=None, min_length=8, examples=["senha123"])
 
 
 class UserUpdate(BaseModel):
