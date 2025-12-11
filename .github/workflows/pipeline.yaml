@@ -74,6 +74,8 @@ jobs:
             "python-jose[cryptography]" \
             "passlib[bcrypt]" \
             python-multipart \
+            # Pin bcrypt<4.1.0 for compatibility with passlib and to avoid breaking changes
+            # in bcrypt 4.1.0+ that may affect password hashing behavior
             "bcrypt<4.1.0"
 
       - name: Run pytest with coverage for ${{ matrix.service }}

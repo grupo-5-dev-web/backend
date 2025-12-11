@@ -417,6 +417,10 @@ def update_booking(
     return updated
 
 
+# NOTE: This endpoint uses PATCH with an action-based path (/cancel) rather than a pure RESTful approach.
+# This is a hybrid design choice: PATCH is used because we're updating the booking's status,
+# but /cancel provides clearer intent than a generic PATCH with a status field.
+# Alternative approaches could be: DELETE (for true deletion) or PATCH /{booking_id} with status in body.
 @router.patch("/{booking_id}/cancel", response_model=BookingOut)
 def cancel_booking(
     booking_id: UUID,
