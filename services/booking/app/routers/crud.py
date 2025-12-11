@@ -298,7 +298,6 @@ def cancel_booking(
 
     Raises:
         sqlalchemy.exc.SQLAlchemyError: If a database error occurs during commit.
-        Exception: If publishing the event fails (depending on _publish_event implementation).
     """
     # Update booking with cancellation details
     booking.status = BookingStatus.CANCELLED
