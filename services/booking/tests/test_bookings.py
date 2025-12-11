@@ -276,6 +276,72 @@ def test_cancel_booking_respects_cancellation_window(client):
         client.app.state.settings_provider = original_provider
 
 
+def test_cancel_booking_publishes_event_with_resource_and_user_ids(client):
+    """Test that booking.cancelled event includes resource_id and user_id in the payload."""
+    tenant_id = str(uuid4())
+    resource_id = str(uuid4())
+    user_id = str(uuid4())
+
+    headers = make_auth_headers(user_id=user_id, tenant_id=tenant_id, user_type="admin")
+
+    # Create a mock event publisher to capture published events
+    published_events = []
+    
+    class MockEventPublisher:
+        def publish(self, event_type, payload, metadata=None):
+            published_events.append({
+                "event_type": event_type,
+                "payload": payload,
+                "metadata": metadata,
+            })
+    
+    # Set the mock publisher
+    original_publisher = client.app.state.event_publisher
+    client.app.state.event_publisher = MockEventPublisher()
+    
+    try:
+        # Create a booking that can be cancelled (far enough in the future)
+        start, end = _base_times(hours_from_now=72)
+        create_resp = client.post(
+            "/bookings/",
+            json=_booking_payload(tenant_id, resource_id, user_id, start, end),
+            headers=headers,
+        )
+        assert create_resp.status_code == status.HTTP_201_CREATED
+        booking_id = create_resp.json()["id"]
+
+        # Cancel the booking
+        cancel_resp = client.patch(
+            f"/bookings/{booking_id}/cancel",
+            json={"reason": "Testing event payload"},
+            headers=headers,
+        )
+        
+        assert cancel_resp.status_code == status.HTTP_200_OK
+        
+        # Find the booking.cancelled event
+        cancelled_events = [
+            e for e in published_events 
+            if e["event_type"] == "booking.cancelled"
+        ]
+        
+        assert len(cancelled_events) == 1, "Expected exactly one booking.cancelled event"
+        
+        event_payload = cancelled_events[0]["payload"]
+        
+        # Verify the event payload contains resource_id and user_id
+        assert "resource_id" in event_payload, "Event payload should contain resource_id"
+        assert "user_id" in event_payload, "Event payload should contain user_id"
+        assert event_payload["resource_id"] == resource_id
+        assert event_payload["user_id"] == user_id
+        assert event_payload["booking_id"] == booking_id
+        assert event_payload["cancelled_by"] == user_id
+        assert event_payload["reason"] == "Testing event payload"
+        
+    finally:
+        client.app.state.event_publisher = original_publisher
+
+
 def test_openapi_version(client):
     response = client.get("/openapi.json")
     assert response.status_code == status.HTTP_200_OK

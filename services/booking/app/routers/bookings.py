@@ -454,29 +454,14 @@ def cancel_booking(
     
     publisher = getattr(request.app.state, "event_publisher", None)
 
-    # Atualizar booking para status cancelado e salvar informações do cancelamento
-    booking.status = "cancelado"
-    booking.cancellation_reason = cancel_payload.reason
-    booking.cancelled_by = current_token.sub
-    booking.cancelled_at = datetime.now(timezone.utc)
-    
-    db.commit()
-    db.refresh(booking)
-    
-    # Publicar evento de cancelamento
-    if publisher:
-        crud._publish_event(
-            publisher,
-            "booking.cancelled",
-            {
-                "booking_id": str(booking.id),
-                "resource_id": str(booking.resource_id),
-                "user_id": str(booking.user_id),
-                "cancelled_by": str(current_token.sub),
-                "reason": cancel_payload.reason,
-            },
-            tenant_id=booking.tenant_id,
-        )
+    # Cancel the booking using crud function
+    booking = crud.cancel_booking(
+        db=db,
+        booking=booking,
+        reason=cancel_payload.reason,
+        cancelled_by=current_token.sub,
+        publisher=publisher,
+    )
 
     return booking
 

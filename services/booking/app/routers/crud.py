@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 from sqlalchemy import and_, or_
@@ -261,4 +261,53 @@ def update_booking_status(
         },
         tenant_id=booking.tenant_id,
     )
+    return booking
+
+
+def cancel_booking(
+    db: Session,
+    booking: Booking,
+    reason: str,
+    cancelled_by: UUID,
+    publisher: Optional[EventPublisher] = None,
+) -> Booking:
+    """Cancel a booking and create appropriate event records."""
+    # Update booking with cancellation details
+    booking.status = BookingStatus.CANCELLED
+    booking.cancellation_reason = reason
+    booking.cancelled_by = cancelled_by
+    booking.cancelled_at = datetime.now(timezone.utc)
+    
+    # Create database event record
+    event = BookingEvent(
+        booking_id=booking.id,
+        tenant_id=booking.tenant_id,
+        event_type="booking.cancelled",
+        payload={
+            "booking_id": str(booking.id),
+            "resource_id": str(booking.resource_id),
+            "user_id": str(booking.user_id),
+            "cancelled_by": str(cancelled_by),
+            "reason": reason,
+        },
+    )
+    db.add(event)
+    
+    db.commit()
+    db.refresh(booking)
+    
+    # Publish external event
+    _publish_event(
+        publisher,
+        "booking.cancelled",
+        {
+            "booking_id": str(booking.id),
+            "resource_id": str(booking.resource_id),
+            "user_id": str(booking.user_id),
+            "cancelled_by": str(cancelled_by),
+            "reason": reason,
+        },
+        tenant_id=booking.tenant_id,
+    )
+    
     return booking
