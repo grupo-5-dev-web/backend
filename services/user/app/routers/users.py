@@ -180,6 +180,7 @@ def update_user(
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(
     user_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -202,7 +203,9 @@ def delete_user(
                 detail="Você não tem permissão para deletar usuários de outro tenant."
             )
 
-    deleted = crud.delete_user(db, user_id)
+    # Pass the event publisher from app state for cascading deletes
+    publisher = getattr(request.app.state, "event_publisher", None)
+    deleted = crud.delete_user(db, user_id, publisher=publisher)
     if not deleted:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
 
