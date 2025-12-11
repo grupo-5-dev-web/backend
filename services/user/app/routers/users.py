@@ -35,19 +35,34 @@ def get_me(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-async def create_user(payload: UserCreate, request: Request, db: Session = Depends(get_db)):
-
+async def create_user(
+    payload: UserCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+):
     await validar_tenant_existe(
         request.app.state.tenant_service_url,
-        str(payload.tenant_id)
+        str(payload.tenant_id),
     )
 
-    validators.ensure_unique_email(db, payload.tenant_id, payload.email)
+    existing_user = (
+        db.query(User)
+        .filter(User.email == payload.email)
+        .first()
+    )
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Já existe um usuário cadastrado com este e-mail.",
+        )
 
     try:
         return crud.create_user(db, payload)
     except IntegrityError:
-        raise HTTPException(status_code=400, detail="Erro ao criar usuário")
+        raise HTTPException(
+            status_code=400,
+            detail="Erro ao criar usuário",
+        )
 
 @router.get("/", response_model=List[UserOut])
 def list_users(
