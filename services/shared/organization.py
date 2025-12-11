@@ -1,13 +1,10 @@
-"""Shared helpers for tenant organization settings and scheduling rules."""
-
 from __future__ import annotations
-
-import os
+from typing import Optional
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
 from typing import Callable
 from uuid import UUID
-
+import os
 import httpx
 from fastapi import HTTPException, status
 from zoneinfo import ZoneInfo
@@ -52,25 +49,45 @@ def _build_settings(payload: dict) -> OrganizationSettings:
     )
 
 
-def default_settings_provider(tenant_id: UUID) -> OrganizationSettings:
+def default_settings_provider(
+    tenant_id: UUID,
+    auth_token: Optional[str] = None,
+) -> OrganizationSettings:
     base_url = os.getenv("TENANT_SERVICE_URL")
     if base_url:
         url = f"{base_url.rstrip('/')}/tenants/{tenant_id}/settings"
+    
+        headers = {}
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+
         try:
-            response = httpx.get(url, timeout=2.0)
+            response = httpx.get(url, timeout=2.0, headers=headers)
             response.raise_for_status()
             return _build_settings(response.json())
         except Exception:
             pass
+
     return _build_settings({})
 
 
-def resolve_settings_provider(app_state) -> SettingsProvider:
-    provider = getattr(app_state, "settings_provider", None)
-    if provider is None:
-        provider = default_settings_provider
-        setattr(app_state, "settings_provider", provider)
-    return provider
+def resolve_settings_provider(
+    app_state,
+    auth_token: Optional[str] = None,
+) -> SettingsProvider:
+    
+    base_provider = getattr(app_state, "settings_provider", None)
+    if base_provider is None:
+        base_provider = default_settings_provider
+        setattr(app_state, "settings_provider", base_provider)
+
+    if auth_token is None:
+        return base_provider
+
+    def provider_with_auth(tenant_id: UUID):
+        return base_provider(tenant_id, auth_token=auth_token)
+
+    return provider_with_auth
 
 
 def _resolve_zone(tz_name: str) -> ZoneInfo:

@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
-
+from app.core.auth_dependencies import get_current_token, TokenPayload, oauth2_scheme
 from app.services.tenant_validator import validar_tenant_existe
 from app.services.resource_validator import validar_recurso_existe
 from app.services.user_validator import validar_usuario_existe
@@ -28,6 +28,7 @@ from app.services.organization import (
 )
 from . import crud
 import os
+from logging import getLogger
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
@@ -51,65 +52,113 @@ async def create_booking(
     payload: BookingCreate,
     request: Request,
     db: Session = Depends(get_db),
+    current_token: TokenPayload = Depends(get_current_token),
+    raw_token: str = Depends(oauth2_scheme),
 ):
+    logger = getLogger(__name__)
+
+    # Tenant do token deve ser o mesmo do booking
+    if current_token.tenant_id != payload.tenant_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Você não pode criar reservas para outro tenant.",
+        )
+
+    # Usuário comum só pode criar booking para ele mesmo
+    if current_token.user_type == "user" and payload.user_id != current_token.sub:
+        raise HTTPException(
+            status_code=403,
+            detail="Usuário comum só pode criar reservas para si mesmo.",
+        )
 
     tenant_service = request.app.state.tenant_service_url
     resource_service = request.app.state.resource_service_url
     user_service = request.app.state.user_service_url
 
     # SETTINGS primeiro: precisamos do timezone do tenant
-    settings_provider = resolve_settings_provider(request.app.state)
+    settings_provider = resolve_settings_provider(
+        request.app.state,
+        auth_token=raw_token,  # passa o token bruto (mesmo que hoje ele não seja usado no provider)
+    )
     settings = settings_provider(payload.tenant_id)
 
     # descobre o fuso do tenant (ex.: America/Recife)
     zone = ensure_timezone(datetime.now(timezone.utc), settings.timezone).tzinfo
 
-    # interpretar o input SEM TZ como horário local do tenant
-    if payload.start_time.tzinfo is None:
-        start_local = payload.start_time.replace(tzinfo=zone)
-    else:
-        start_local = payload.start_time.astimezone(zone)
+    start_naive = payload.start_time.replace(tzinfo=None)
+    end_naive = payload.end_time.replace(tzinfo=None)
 
-    if payload.end_time.tzinfo is None:
-        end_local = payload.end_time.replace(tzinfo=zone)
-    else:
-        end_local = payload.end_time.astimezone(zone)
+    start_local = start_naive.replace(tzinfo=zone)
+    end_local = end_naive.replace(tzinfo=zone)
+
+    logger.info(
+        "DEBUG booking time: start_local=%s end_local=%s tz=%s",
+        start_local,
+        end_local,
+        settings.timezone,
+    )
 
     # validações externas
     if not is_testing():
-        await validar_tenant_existe(tenant_service, str(payload.tenant_id))
-        recurso_data = await validar_recurso_existe(resource_service, str(payload.resource_id))
+        await validar_tenant_existe(
+            tenant_service,
+            str(payload.tenant_id),
+            auth_token=raw_token, 
+        )
+
+        recurso_data = await validar_recurso_existe(
+            resource_service,
+            str(payload.resource_id),
+            auth_token=raw_token, 
+        )
+
+        logger.info(
+            "DEBUG resource availability (resource_id=%s): %s",
+            payload.resource_id,
+            recurso_data.get("availability_schedule"),
+        )
 
         if str(recurso_data["tenant_id"]) != str(payload.tenant_id):
             raise HTTPException(400, "Recurso não pertence ao Tenant informado")
 
-        usuario_data = await validar_usuario_existe(user_service, str(payload.user_id))
+        usuario_data = await validar_usuario_existe(
+            user_service,
+            str(payload.user_id),
+            auth_token=raw_token, 
+        )
         if str(usuario_data["tenant_id"]) != str(payload.tenant_id):
             raise HTTPException(400, "Usuário não pertence ao Tenant informado")
 
         # validar contra availability_schedule do recurso
         schedule = recurso_data.get("availability_schedule", {})
         weekday = start_local.weekday()  # 0 = Monday
-        
-        # Formato: {"monday": [{"start": "06:00", "end": "22:00"}], "tuesday": [...], ...}
-        weekday_names = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-        day_name = weekday_names[weekday]
-        allowed_entries = schedule.get(day_name, [])
+        weekday_key = [
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+        ][weekday]
 
-        if not allowed_entries:
+        allowed_ranges = schedule.get(weekday_key, [])
+
+        if not allowed_ranges:
             raise HTTPException(400, "Recurso indisponível neste dia da semana.")
 
         valid = False
-        for entry in allowed_entries:
+        for rng in allowed_ranges:
+            start_raw, end_raw = rng.split("-")
             r_start = datetime.combine(
-                start_local.date(), 
-                time.fromisoformat(entry["start"]), 
-                tzinfo=zone
+                start_local.date(),
+                time.fromisoformat(start_raw),
+                tzinfo=zone,
             )
             r_end = datetime.combine(
-                start_local.date(), 
-                time.fromisoformat(entry["end"]), 
-                tzinfo=zone
+                start_local.date(),
+                time.fromisoformat(end_raw),
+                tzinfo=zone,
             )
 
             # o intervalo pedido precisa CABER dentro de algum range permitido
@@ -149,7 +198,10 @@ async def create_booking(
                 for b in conflicts
             ],
         )
-        return JSONResponse(status_code=409, content=conflict_payload.model_dump(mode="json"))
+        return JSONResponse(
+            status_code=409,
+            content=conflict_payload.model_dump(mode="json"),
+        )
 
     # salvar em UTC
     payload.start_time = start_utc
@@ -170,7 +222,27 @@ def list_bookings(
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
     db: Session = Depends(get_db),
+    current_token: TokenPayload = Depends(get_current_token),
+    raw_token: str = Depends(oauth2_scheme),
 ):
+
+    if tenant_id != current_token.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Você não pode listar reservas de outro tenant.",
+        )
+
+    if current_token.user_type != "admin":
+        if user_id is not None and user_id != current_token.sub:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Usuário comum só pode listar suas próprias reservas.",
+            )
+        effective_user_id = current_token.sub
+    else:
+        # admin pode listar de qualquer usuário, desde que seja do mesmo tenant
+        effective_user_id = user_id
+
     start_dt = _parse_iso_datetime(start_date, "start_date")
     end_dt = _parse_iso_datetime(end_date, "end_date")
 
@@ -181,7 +253,7 @@ def list_bookings(
         db=db,
         tenant_id=tenant_id,
         resource_id=resource_id,
-        user_id=user_id,
+        user_id=effective_user_id,
         status=status_param,
         start_date=start_dt,
         end_date=end_dt,
@@ -190,7 +262,7 @@ def list_bookings(
     if not bookings:
         raise HTTPException(404, "Nenhuma reserva encontrada.")
 
-    settings_provider = resolve_settings_provider(request.app.state)
+    settings_provider = resolve_settings_provider(request.app.state, auth_token=raw_token)
     settings = settings_provider(tenant_id)
 
     enriched = []
@@ -207,10 +279,29 @@ def list_bookings(
 
 
 @router.get("/{booking_id}", response_model=BookingOut)
-def get_booking(booking_id: UUID, db: Session = Depends(get_db)):
+def get_booking(
+    booking_id: UUID,
+    db: Session = Depends(get_db),
+    current_token: TokenPayload = Depends(get_current_token),
+):
     booking = crud.get_booking(db, booking_id)
     if not booking:
-        raise HTTPException(404, "Reserva não encontrada")
+        raise HTTPException(status_code=404, detail="Reserva não encontrada")
+
+    # precisa ser do mesmo tenant
+    if booking.tenant_id != current_token.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Você não pode acessar reservas de outro tenant.",
+        )
+
+    # usuário comum só pode ver reserva dele mesmo
+    if current_token.user_type != "admin" and booking.user_id != current_token.sub:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Você só pode acessar suas próprias reservas.",
+        )
+
     return booking
 
 
@@ -220,12 +311,32 @@ def update_booking(
     payload: BookingUpdate,
     request: Request,
     db: Session = Depends(get_db),
+    current_token: TokenPayload = Depends(get_current_token),
 ):
     booking = crud.get_booking(db, booking_id)
     if not booking:
         raise HTTPException(404, "Reserva não encontrada")
 
-    settings_provider = resolve_settings_provider(request.app.state)
+    if booking.tenant_id != current_token.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Você não tem permissão para alterar reservas de outro tenant.",
+        )
+
+    if current_token.user_type != "admin" and booking.user_id != current_token.sub:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Você só pode alterar suas próprias reservas.",
+        )
+
+    raw_token = (
+        request.headers.get("authorization", "")
+        .removeprefix("Bearer ")
+        .strip()
+        or None
+    )
+
+    settings_provider = resolve_settings_provider(request.app.state, auth_token=raw_token)
     settings = settings_provider(booking.tenant_id)
     zone = ensure_timezone(datetime.now(timezone.utc), settings.timezone).tzinfo
 
@@ -287,29 +398,48 @@ def cancel_booking(
     booking_id: UUID,
     cancel_payload: BookingCancelRequest,
     request: Request,
-    cancelled_by: UUID = Query(...),
     db: Session = Depends(get_db),
+    current_token: TokenPayload = Depends(get_current_token),
 ):
     booking = crud.get_booking(db, booking_id)
     if not booking:
         raise HTTPException(404, "Reserva não encontrada")
 
-    settings_provider = resolve_settings_provider(request.app.state)
+    if booking.tenant_id != current_token.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Você não tem permissão para cancelar reservas de outro tenant.",
+        )
+
+    if current_token.user_type != "admin" and booking.user_id != current_token.sub:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Você só pode cancelar suas próprias reservas.",
+        )
+
+    raw_token = (
+        request.headers.get("authorization", "")
+        .removeprefix("Bearer ")
+        .strip()
+        or None
+    )
+
+    settings_provider = resolve_settings_provider(request.app.state, auth_token=raw_token)
     settings = settings_provider(booking.tenant_id)
     validate_cancellation_window(booking.start_time, settings)
-    
+
     publisher = getattr(request.app.state, "event_publisher", None)
 
     deleted = crud.delete_booking(
         db=db,
         booking_id=booking_id,
-        deleted_by=cancelled_by,
+        deleted_by=current_token.sub,  # quem está cancelando
         publisher=publisher,
     )
 
     if not deleted:
         raise HTTPException(404, "Reserva não encontrada")
-    
+
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -319,12 +449,30 @@ def update_status(
     request: Request,
     status_param: str = Query(...),
     db: Session = Depends(get_db),
+    current_token: TokenPayload = Depends(get_current_token),
 ):
     if status_param not in BookingStatus.ALL:
-        raise HTTPException(400, "Status inválido")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Status inválido")
+
+    booking = crud.get_booking(db, booking_id)
+    if not booking:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Reserva não encontrada")
+
+    if booking.tenant_id != current_token.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Você não tem permissão para alterar reservas de outro tenant.",
+        )
+
+    if current_token.user_type != "admin" and booking.user_id != current_token.sub:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Você só pode alterar o status das suas próprias reservas.",
+        )
 
     publisher = getattr(request.app.state, "event_publisher", None)
-    booking = crud.update_booking_status(db, booking_id, status_param, publisher=publisher)
-    if not booking:
-        raise HTTPException(404, "Reserva não encontrada")
-    return booking
+    updated = crud.update_booking_status(db, booking_id, status_param, publisher=publisher)
+    if not updated:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Reserva não encontrada")
+
+    return updated

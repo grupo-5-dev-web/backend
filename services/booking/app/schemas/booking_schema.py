@@ -54,7 +54,7 @@ class BookingBase(BaseModel):
 
 class BookingCreate(BookingBase):
     """Schema para criação de nova reserva. Valida regras de antecedência, horário comercial e conflitos."""
-    status: Optional[str] = Field(default=BookingStatus.PENDING, description="Status inicial da reserva (pendente, confirmado, cancelado)")
+    status: Optional[str] = Field(default=BookingStatus.CONFIRMED, description="Status inicial da reserva (pendente, confirmado, cancelado)")
 
     @field_validator("status")
     @classmethod
