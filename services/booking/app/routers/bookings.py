@@ -4,6 +4,8 @@ from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 from app.core.auth_dependencies import get_current_token, TokenPayload, oauth2_scheme
 from app.services.tenant_validator import validar_tenant_existe
@@ -394,6 +396,7 @@ def update_booking(
 
 
 @router.delete("/{booking_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{booking_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)
 def cancel_booking(
     booking_id: UUID,
     cancel_payload: BookingCancelRequest,
@@ -427,7 +430,7 @@ def cancel_booking(
     settings_provider = resolve_settings_provider(request.app.state, auth_token=raw_token)
     settings = settings_provider(booking.tenant_id)
     validate_cancellation_window(booking.start_time, settings)
-
+    
     publisher = getattr(request.app.state, "event_publisher", None)
 
     deleted = crud.delete_booking(
