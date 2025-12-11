@@ -31,10 +31,10 @@ from app.core.auth_dependencies import get_current_token  # noqa: E402
 def prepare_database():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    yield
     Base.metadata.drop_all(bind=engine)
 
 
-class DummyToken:
 class DummyToken:
     def __init__(self, tenant_id=None):
         self.sub = UUIDType("00000000-0000-0000-0000-000000000000")
