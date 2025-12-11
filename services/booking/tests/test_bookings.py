@@ -1,12 +1,13 @@
 from datetime import datetime, timedelta, timezone
 from datetime import time
 from uuid import uuid4
-
+import os
 from fastapi import status
-
 from .conftest import make_auth_headers
 from app.services.organization import OrganizationSettings
 
+SECRET_KEY = os.getenv("SECRET_KEY", "ci-test-secret")
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS512")
 
 def _base_times(hours_from_now: int = 48, duration_minutes: int = 60):
     base = datetime.now(timezone.utc) + timedelta(hours=hours_from_now)
