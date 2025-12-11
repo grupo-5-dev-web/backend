@@ -204,7 +204,7 @@ def test_booking_respects_advance_window(client):
 
     original_provider = client.app.state.settings_provider
 
-    def limited_provider(_tenant_id):
+    def limited_provider(_tenant_id, auth_token=None):
         return OrganizationSettings(
             timezone="UTC",
             working_hours_start=time(8, 0),
@@ -238,7 +238,7 @@ def test_cancel_booking_respects_cancellation_window(client):
 
     original_provider = client.app.state.settings_provider
 
-    def strict_cancellation_provider(_tenant_id):
+    def strict_cancellation_provider(_tenant_id, auth_token=None):
         return OrganizationSettings(
             timezone="UTC",
             working_hours_start=time(8, 0),
