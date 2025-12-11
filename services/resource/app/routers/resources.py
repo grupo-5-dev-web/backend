@@ -8,7 +8,7 @@ from app.schemas.resource_schema import (ResourceAvailabilityResponse,ResourceCr
 from app.services.availability import compute_availability
 from app.services.tenant_validator import validar_tenant_existe
 from . import crud
-from app.core.auth_dependencies import get_current_token, TokenPayload
+from app.core.auth_dependencies import get_current_token, TokenPayload, oauth2_scheme
 
 router = APIRouter(tags=["Resources"])
 
@@ -184,8 +184,8 @@ def consultar_disponibilidade(
     data: str = Query(..., description="Data da consulta no formato YYYY-MM-DD"),
     db: Session = Depends(get_db),
     current_token: TokenPayload = Depends(get_current_token),
+    raw_token: str = Depends(oauth2_scheme),
 ):
-    
     recurso = crud.buscar_recurso(db, recurso_id)
     if not recurso:
         raise HTTPException(status_code=404, detail="Recurso não encontrado")
@@ -209,5 +209,6 @@ def consultar_disponibilidade(
         db_session=db,
         resource_id=recurso_id,
         target_date=target_date,
+        auth_token=raw_token,
     )
     return result

@@ -1,4 +1,5 @@
 from datetime import datetime, timezone, time
+from zoneinfo import ZoneInfo
 from shared import ensure_timezone
 from typing import List, Optional
 from uuid import UUID
@@ -227,7 +228,6 @@ def list_bookings(
     current_token: TokenPayload = Depends(get_current_token),
     raw_token: str = Depends(oauth2_scheme),
 ):
-
     if tenant_id != current_token.tenant_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -264,16 +264,40 @@ def list_bookings(
     if not bookings:
         raise HTTPException(404, "Nenhuma reserva encontrada.")
 
-    settings_provider = resolve_settings_provider(request.app.state, auth_token=raw_token)
+    settings_provider = resolve_settings_provider(
+        request.app.state,
+        auth_token=raw_token,
+    )
     settings = settings_provider(tenant_id)
 
-    enriched = []
+    tz = ZoneInfo(settings.timezone)
+
+    enriched: list[BookingWithPolicy] = []
     for item in bookings:
         base_data = BookingOut.model_validate(item).model_dump(mode="python")
+
+        start_dt = base_data["start_time"]
+        end_dt = base_data["end_time"]
+
+        # 👉 Se vier sem tz, assumimos que está em UTC no banco
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
+
+        # Converte de UTC → timezone do tenant
+        local_start = start_dt.astimezone(tz).replace(tzinfo=None)
+        local_end = end_dt.astimezone(tz).replace(tzinfo=None)
+
+        # Sobrescreve no dict que vai pro Pydantic
+        base_data["start_time"] = local_start
+        base_data["end_time"] = local_end
+
         enriched.append(
             BookingWithPolicy(
                 **base_data,
-                can_cancel=can_cancel_booking(item.start_time, settings),
+                # can_cancel baseado no horário local
+                can_cancel=can_cancel_booking(local_start, settings),
             )
         )
 
@@ -395,7 +419,6 @@ def update_booking(
     return updated
 
 
-@router.delete("/{booking_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)
 @router.delete("/{booking_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)
 def cancel_booking(
     booking_id: UUID,

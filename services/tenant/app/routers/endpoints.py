@@ -94,14 +94,7 @@ def obter_configuracoes(
     db: Session = Depends(get_db),
     current_token: TokenPayload = Depends(get_current_token),
 ):
-    # só admin pode ver configurações
-    if current_token.user_type != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Somente administradores podem acessar as configurações do tenant",
-        )
-
-    # admin só pode ver configurações do próprio tenant
+    # Qualquer usuário (admin ou comum) só pode acessar settings do próprio tenant
     if current_token.tenant_id != tenant_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
