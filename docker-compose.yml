@@ -28,6 +28,8 @@ services:
     depends_on:
       db_user:
         condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - backend_net
     command: ["/bin/sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
@@ -46,6 +48,8 @@ services:
     depends_on:
       db_tenant:
         condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - backend_net
     command: ["/bin/sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
@@ -65,6 +69,8 @@ services:
     depends_on:
       db_resource:
         condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - backend_net
     command: ["/bin/sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
@@ -85,6 +91,8 @@ services:
     depends_on:
       db_booking:
         condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - backend_net
     command: ["/bin/sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
