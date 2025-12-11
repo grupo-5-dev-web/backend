@@ -161,7 +161,11 @@ def update_booking(
         booking_id=booking.id,
         tenant_id=booking.tenant_id,
         event_type="booking.updated",
-        payload={"changed_fields": list(update_data.keys())},
+        payload={
+            "resource_id": str(booking.resource_id),
+            "user_id": str(booking.user_id),
+            "changed_fields": list(update_data.keys()),
+        },
     )
     db.add(event)
 
@@ -199,6 +203,8 @@ def delete_booking(
         event_type="booking.deleted",
         payload={
             "booking_id": str(booking.id),
+            "resource_id": str(booking.resource_id),
+            "user_id": str(booking.user_id),
             "deleted_by": str(deleted_by),
             "start_time": booking.start_time.isoformat(),
             "end_time": booking.end_time.isoformat(),
@@ -243,7 +249,11 @@ def update_booking_status(
         booking_id=booking.id,
         tenant_id=booking.tenant_id,
         event_type="booking.status_changed",
-        payload={"status": status},
+        payload={
+            "resource_id": str(booking.resource_id),
+            "user_id": str(booking.user_id),
+            "status": status,
+        },
     )
     db.add(event)
 
