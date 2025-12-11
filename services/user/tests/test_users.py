@@ -54,10 +54,12 @@ def test_create_list_update_delete_user(client):
     delete_response = client.delete(f"/users/{user_id}", headers=headers)
     assert delete_response.status_code == status.HTTP_204_NO_CONTENT
 
-    # ✔ delete real → criar outro usuário admin para verificar o 404
-    # (não podemos usar o token do usuário deletado)
+    # Create a new admin user to verify the deleted user returns 404
+    # This workaround is necessary because we cannot use the authentication token
+    # from the deleted user to make subsequent API requests. The new admin user
+    # must be in the same tenant to have permission to query for the deleted user.
     other_payload = _user_payload()
-    other_payload["tenant_id"] = payload["tenant_id"]  # Mesmo tenant!
+    other_payload["tenant_id"] = payload["tenant_id"]  # Same tenant for permissions
     other_payload["email"] = "other@example.com"
     other_response = client.post("/users/", json=other_payload)
     other_id = other_response.json()["id"]

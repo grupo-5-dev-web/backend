@@ -47,6 +47,10 @@ class DummyToken:
 
 
 # Global variable to store the current tenant_id for the test
+# WARNING: This global state is not thread-safe. If tests ever run in parallel,
+# this could lead to race conditions where one test's tenant_id affects another test.
+# The fixture on line 73 resets this value after each test to minimize side effects.
+# Ensure tests remain sequential or refactor to use thread-local storage if parallel execution is needed.
 _test_tenant_id = None
 
 
@@ -55,7 +59,10 @@ def override_get_current_token():
 
 
 def set_test_tenant_id(tenant_id):
-    """Helper to set the tenant_id for the DummyToken in tests"""
+    """Helper to set the tenant_id for the DummyToken in tests
+    
+    WARNING: This modifies global state and is not thread-safe.
+    """
     global _test_tenant_id
     _test_tenant_id = str(tenant_id) if tenant_id else None
 
