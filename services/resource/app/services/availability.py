@@ -97,13 +97,20 @@ def _collect_existing_bookings(
     resource_id: UUID,
     start: datetime,
     end: datetime,
+    auth_token: str | None = None,
+    tz_name: str | None = None,
 ) -> List[tuple[datetime, datetime]]:
-
     base_url = os.getenv("BOOKING_SERVICE_URL")
     if not base_url:
+        print("[BOOKINGS] BOOKING_SERVICE_URL NÃO CONFIGURADA")
         return []
 
-    url = f"{base_url.rstrip('/')}/bookings/"
+    base = base_url.rstrip("/")
+    if base.endswith("/bookings"):
+        url = base + "/"
+    else:
+        url = base + "/bookings/"
+
     params = {
         "tenant_id": str(tenant_id),
         "resource_id": str(resource_id),
@@ -111,20 +118,73 @@ def _collect_existing_bookings(
         "end_date": end.isoformat(),
     }
 
+    headers: dict[str, str] = {}
+    if auth_token:
+        headers["Authorization"] = f"Bearer {auth_token}"
+
+    print("[BOOKINGS] Chamando:", url, "params=", params)
+
     try:
-        response = httpx.get(url, params=params, timeout=2.0)
+        response = httpx.get(
+            url,
+            params=params,
+            headers=headers,
+            timeout=2.0,
+            follow_redirects=True,
+        )
+        print("[BOOKINGS] status:", response.status_code)
+        print("[BOOKINGS] body:", response.text)
         response.raise_for_status()
-    except Exception:
+    except Exception as e:
+        print("[BOOKINGS] ERRO AO CONSULTAR:", repr(e))
         return []
 
     data = response.json()
 
-    bookings = []
+    bookings: list[tuple[datetime, datetime]] = []
     for item in data:
-        start_dt = datetime.fromisoformat(item["start_time"].replace("Z", "+00:00"))
-        end_dt = datetime.fromisoformat(item["end_time"].replace("Z", "+00:00"))
-        bookings.append((start_dt, end_dt))
+        try:
+            raw_start = str(item["start_time"])
+            raw_end = str(item["end_time"])
 
+            # se vier com "Z", trata como UTC direto
+            raw_start = raw_start.replace("Z", "+00:00")
+            raw_end = raw_end.replace("Z", "+00:00")
+
+            start_dt = datetime.fromisoformat(raw_start)
+            end_dt = datetime.fromisoformat(raw_end)
+
+            if tz_name:
+                # horários sem tz = horário local do tenant
+                if start_dt.tzinfo is None:
+                    local_start = ensure_timezone(start_dt, tz_name)
+                    start_dt = local_start.astimezone(timezone.utc)
+                else:
+                    start_dt = start_dt.astimezone(timezone.utc)
+
+                if end_dt.tzinfo is None:
+                    local_end = ensure_timezone(end_dt, tz_name)
+                    end_dt = local_end.astimezone(timezone.utc)
+                else:
+                    end_dt = end_dt.astimezone(timezone.utc)
+            else:
+                # fallback (não deve ser seu caso, mas deixo robusto)
+                if start_dt.tzinfo is None:
+                    start_dt = start_dt.replace(tzinfo=timezone.utc)
+                else:
+                    start_dt = start_dt.astimezone(timezone.utc)
+
+                if end_dt.tzinfo is None:
+                    end_dt = end_dt.replace(tzinfo=timezone.utc)
+                else:
+                    end_dt = end_dt.astimezone(timezone.utc)
+
+            bookings.append((start_dt, end_dt))
+        except Exception as exc:
+            print("[BOOKINGS] ERRO PARSING ITEM:", item, "EXC:", repr(exc))
+            continue
+
+    print("[BOOKINGS] bookings encontrados:", bookings) # pra debugar
     return bookings
 
 
@@ -144,6 +204,7 @@ def compute_availability(
     db_session,
     resource_id: UUID,
     target_date: date,
+    auth_token: str | None = None,
 ) -> dict:
 
     resource = crud.buscar_recurso(db_session, resource_id)
@@ -152,7 +213,10 @@ def compute_availability(
     if resource.status != "disponivel":
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Recurso indisponível para reservas.")
 
-    settings_provider: SettingsProvider = resolve_settings_provider(app_state)
+    settings_provider: SettingsProvider = resolve_settings_provider(
+        app_state,
+        auth_token=auth_token,
+    )
     settings = settings_provider(resource.tenant_id)
 
     today_local = ensure_timezone(datetime.now(timezone.utc), settings.timezone).date()
@@ -165,18 +229,44 @@ def compute_availability(
             f"Consultas de disponibilidade limitadas a {settings.advance_booking_days} dias de antecedência.",
         )
 
-    # Suporta o novo formato com schedule array
     availability_data = resource.availability_schedule or {}
-    schedule_list = availability_data.get("schedule", [])
-    
-    # Filtrar entradas para o dia da semana correto (0=segunda, 6=domingo)
-    target_weekday = target_date.weekday()
-    daily_schedule = [
-        entry for entry in schedule_list 
-        if entry.get("day_of_week") == target_weekday
-    ]
-    
-    if not daily_schedule:
+
+    weekday_index = target_date.weekday()
+    weekday_key = _WEEKDAY_KEYS[weekday_index]
+
+    time_ranges: List[tuple[time, time]] = []
+
+    # Formato antigo: {"monday": ["08:00-12:00", "13:00-16:00"], ...}
+    if weekday_key in availability_data:
+        daily_schedule = availability_data.get(weekday_key, []) or []
+        for entry in daily_schedule:
+            # cada entry é uma string "HH:MM-HH:MM"
+            start_time, end_time = _parse_schedule_entry(entry)
+            time_ranges.append((start_time, end_time))
+
+    # Formato novo: {"schedule": [{"day_of_week": 0, "start_time": "...", "end_time": "..."}, ...]}
+    elif "schedule" in availability_data:
+        schedule_list = availability_data.get("schedule", []) or []
+        for entry in schedule_list:
+            if entry.get("day_of_week") != weekday_index:
+                continue
+            try:
+                start_time = time.fromisoformat(entry["start_time"])
+                end_time = time.fromisoformat(entry["end_time"])
+            except (KeyError, ValueError) as exc:
+                raise HTTPException(
+                    status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    "Disponibilidade inválida configurada.",
+                ) from exc
+            if end_time <= start_time:
+                raise HTTPException(
+                    status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    "Intervalo de disponibilidade inválido.",
+                )
+            time_ranges.append((start_time, end_time))
+
+    # nenhum horário configurado pra esse dia
+    if not time_ranges:
         return {
             "resource_id": str(resource.id),
             "tenant_id": str(resource.tenant_id),
@@ -193,16 +283,24 @@ def compute_availability(
     day_start = day_start_local.astimezone(timezone.utc)
     day_end = day_end_local.astimezone(timezone.utc)
 
-    bookings = _collect_existing_bookings(resource.tenant_id, resource.id, day_start, day_end)
+    bookings = _collect_existing_bookings(
+        resource.tenant_id,
+        resource.id,
+        day_start,
+        day_end,
+        auth_token=auth_token,
+        tz_name=settings.timezone, 
+    )
 
     slots: List[AvailabilitySlot] = []
-    for entry in daily_schedule:
-        # No novo formato, start_time e end_time já estão como campos separados
-        start_time = time.fromisoformat(entry["start_time"])
-        end_time = time.fromisoformat(entry["end_time"])
+    for start_time, end_time in time_ranges:
         slots.extend(_generate_slots(target_date, start_time, end_time, settings))
 
-    filtered_slots = [slot.model_dump() for slot in slots if not _is_slot_conflicted(slot, bookings)]
+    filtered_slots = [
+        slot.model_dump()
+        for slot in slots
+        if not _is_slot_conflicted(slot, bookings)
+    ]
 
     return {
         "resource_id": str(resource.id),

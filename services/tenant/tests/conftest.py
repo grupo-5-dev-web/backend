@@ -1,7 +1,9 @@
 import os
 import sys
 from pathlib import Path
-
+from app.main import app  # noqa: E402
+from app.core.database import Base, engine  # noqa: E402
+from app.core.auth_dependencies import get_current_token  # noqa: E402
 import pytest
 from fastapi.testclient import TestClient
 
@@ -21,10 +23,6 @@ for module_name in list(sys.modules):
 
 os.environ.setdefault("TENANT_DATABASE_URL", f"sqlite:///{SERVICE_DIR / 'test_tenant.db'}")
 
-from app.main import app  # noqa: E402
-from app.core.database import Base, engine  # noqa: E402
-
-
 @pytest.fixture(autouse=True)
 def prepare_database():
     Base.metadata.drop_all(bind=engine)
@@ -33,7 +31,22 @@ def prepare_database():
     Base.metadata.drop_all(bind=engine)
 
 
+class DummyToken:
+    sub = "00000000-0000-0000-0000-000000000000"
+    tenant_id = "11111111-1111-1111-1111-111111111111"
+    user_type = "admin"
+
+
+def override_get_current_token():
+    return DummyToken()
+
 @pytest.fixture
 def client():
+    # sobrescreve autenticação somente durante os testes
+    app.dependency_overrides[get_current_token] = override_get_current_token
+
     with TestClient(app) as test_client:
         yield test_client
+
+    # limpa overrides depois
+    app.dependency_overrides.clear()

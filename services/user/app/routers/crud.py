@@ -4,13 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from app.models.user import User
 from app.schemas.user_schema import UserCreate, UserUpdate
-
-
-def hash_password(plain_password: Optional[str]) -> Optional[str]:
-    # TODO: substituir por hash seguro (ex: passlib/bcrypt)
-    if not plain_password:
-        return None
-    return plain_password
+from app.core.security import get_password_hash
 
 
 def create_user(db: Session, payload: UserCreate) -> User:
@@ -19,7 +13,7 @@ def create_user(db: Session, payload: UserCreate) -> User:
         name=payload.name,
         email=payload.email,
         phone=payload.phone,
-        password_hash=hash_password(payload.password),
+        password_hash=get_password_hash(payload.password),
         user_type=payload.user_type,
         department=payload.department,
         is_active=payload.is_active,
@@ -74,8 +68,12 @@ def update_user(db: Session, user_id: UUID, payload: UserUpdate) -> Optional[Use
         # else: already a dict, keep as-is
     if "profile_metadata" in update_data and update_data["profile_metadata"] is None:
         update_data["profile_metadata"] = {}
+
     if "password" in update_data:
-        user.password_hash = hash_password(update_data.pop("password"))
+        raw_password = update_data.pop("password")
+        if raw_password is None:
+            raise ValueError("Senha não pode ser nula.")
+        user.password_hash = get_password_hash(raw_password)
 
     for field, value in update_data.items():
         setattr(user, field, value)
