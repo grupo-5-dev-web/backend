@@ -82,6 +82,8 @@ def create_booking(
         event_type="booking.created",
         payload={
             "booking_id": str(booking.id),
+            "resource_id": str(booking.resource_id),
+            "user_id": str(booking.user_id),
             "status": booking.status,
             "start_time": booking.start_time.isoformat(),
             "end_time": booking.end_time.isoformat(),
@@ -96,6 +98,8 @@ def create_booking(
         "booking.created",
         {
             "booking_id": str(booking.id),
+            "resource_id": str(booking.resource_id),
+            "user_id": str(booking.user_id),
             "status": booking.status,
             "start_time": booking.start_time.isoformat(),
             "end_time": booking.end_time.isoformat(),
@@ -169,6 +173,8 @@ def update_booking(
         "booking.updated",
         {
             "booking_id": str(booking.id),
+            "resource_id": str(booking.resource_id),
+            "user_id": str(booking.user_id),
             "changes": list(update_data.keys()),
         },
         tenant_id=booking.tenant_id,
@@ -209,6 +215,8 @@ def delete_booking(
         "booking.deleted",
         {
             "booking_id": str(booking.id),
+            "resource_id": str(booking.resource_id),
+            "user_id": str(booking.user_id),
             "deleted_by": str(deleted_by),
             "start_time": booking.start_time.isoformat(),
             "end_time": booking.end_time.isoformat(),
@@ -247,6 +255,8 @@ def update_booking_status(
         "booking.status_changed",
         {
             "booking_id": str(booking.id),
+            "resource_id": str(booking.resource_id),
+            "user_id": str(booking.user_id),
             "status": status,
         },
         tenant_id=booking.tenant_id,
