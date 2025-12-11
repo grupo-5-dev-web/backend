@@ -5,8 +5,6 @@ from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse, Response
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 from app.core.auth_dependencies import get_current_token, TokenPayload, oauth2_scheme
 from app.services.tenant_validator import validar_tenant_existe
@@ -33,8 +31,8 @@ from . import crud
 import os
 from logging import getLogger
 
-router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
+router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
 def is_testing() -> bool:
     return os.getenv("PYTEST_CURRENT_TEST") is not None
