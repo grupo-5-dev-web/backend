@@ -374,7 +374,7 @@ O pipeline de CI executa automaticamente as seguintes etapas em cada Pull Reques
 ### TODO
 
 #### 🔴 Segurança e Infraestrutura
-- [ ] **Hash seguro de senhas**: Substituir implementação placeholder em `user/app/routers/crud.py` por `passlib[bcrypt]` ou `argon2-cffi`.
+- [x] **Hash seguro de senhas**: Substituir implementação placeholder em `user/app/routers/crud.py` por `passlib[bcrypt]` ou `argon2-cffi`.
 - [ ] **Variáveis de ambiente**: Extrair credenciais hardcoded do `docker-compose.yml` para `.env` (postgres passwords, redis).
 - [ ] **Rate limiting**: Configurar limites por IP/tenant no Nginx usando `limit_req_zone` e `limit_req`.
 - [ ] **CORS configurável**: Adicionar configuração de CORS por ambiente (dev permite `*`, prod restringe domínios).
@@ -385,7 +385,7 @@ O pipeline de CI executa automaticamente as seguintes etapas em cada Pull Reques
 - [ ] **Métricas (Prometheus)**: Expor `/metrics` com contadores de requests, latências e erros via `prometheus-fastapi-instrumentator`.
 - [ ] **Testes de integração**: Criar suíte validando fluxo completo (tenant settings → disponibilidade → criação de booking com conflitos).
 - [ ] **Coverage reports**: Configurar `pytest-cov` para gerar relatórios HTML e manter cobertura acima de 80%.
-- [ ] **Lint e formatação**: Adicionar `ruff` ou `black + isort + flake8` em pre-commit hooks e CI.
+- [x] **Lint e formatação**: Adicionar `ruff` ou `black + isort + flake8` em pre-commit hooks e CI.
 
 #### 🟢 Funcionalidades e Evolução
 - [x] **Consumidores de eventos**: Implementado com Redis Streams e Consumer Groups. User e Resource services consomem eventos de booking. Booking service consome eventos de deleção (resource.deleted, user.deleted, tenant.deleted).
