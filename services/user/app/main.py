@@ -37,13 +37,6 @@ tags_metadata = [
 _CONFIG = load_service_config("user")
 _ROOT_PATH = os.getenv("APP_ROOT_PATH", "")
 
-# CORS
-_raw_origins = os.getenv("CORS_ORIGINS", "*")
-if _raw_origins == "*":
-    CORS_ALLOW_ORIGINS = ["*"]
-else:
-    CORS_ALLOW_ORIGINS = [origin.strip() for origin in _raw_origins.split(",")]
-
 # Event Publisher for user.deleted events (only if Redis is configured)
 _EVENT_PUBLISHER = (
     EventPublisher(_CONFIG.redis.url, "deletion-events")
@@ -123,7 +116,10 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Configuração de CORS
+app.state.config = _CONFIG
+app.state.event_publisher = _EVENT_PUBLISHER
+
+# Configure CORS (after app.state setup)
 raw_origins = os.getenv("CORS_ORIGINS", "")
 
 if raw_origins:
@@ -139,9 +135,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app.state.config = _CONFIG
-app.state.event_publisher = _EVENT_PUBLISHER
 
 def custom_openapi_schema():
     if app.openapi_schema:
