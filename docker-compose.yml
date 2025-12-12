@@ -28,6 +28,7 @@ services:
       - SECRET_KEY=ca76563c37354029ac4e02d96427a444dce2f9401ddb366afee9e70219885ef44add634887d2956d1cabaec071d4b78d61d4b84bfae6aec80213f0a27d350864
       - JWT_ALGORITHM=HS512
       - ACCESS_TOKEN_EXPIRE_HOURS=24
+      - CORS_ORIGINS=http://localhost:3000,https://chronos-webdev.vercel.app,https://chronos-git-fix-adjust-applicat-3fca67-aildsonsh-1784s-projects.vercel.app,https://chronos-i1cnx4csg-aildsonsh-1784s-projects.vercel.app
     depends_on:
       db_user:
         condition: service_healthy
@@ -50,6 +51,7 @@ services:
       - SECRET_KEY=ca76563c37354029ac4e02d96427a444dce2f9401ddb366afee9e70219885ef44add634887d2956d1cabaec071d4b78d61d4b84bfae6aec80213f0a27d350864
       - JWT_ALGORITHM=HS512
       - REDIS_URL=redis://redis:6379
+      - CORS_ORIGINS=http://localhost:3000,https://chronos-webdev.vercel.app,https://chronos-git-fix-adjust-applicat-3fca67-aildsonsh-1784s-projects.vercel.app,https://chronos-i1cnx4csg-aildsonsh-1784s-projects.vercel.app
     depends_on:
       db_tenant:
         condition: service_healthy
@@ -73,6 +75,7 @@ services:
       - BOOKING_SERVICE_URL=http://booking:8000
       - SECRET_KEY=ca76563c37354029ac4e02d96427a444dce2f9401ddb366afee9e70219885ef44add634887d2956d1cabaec071d4b78d61d4b84bfae6aec80213f0a27d350864
       - JWT_ALGORITHM=HS512
+      - CORS_ORIGINS=http://localhost:3000,https://chronos-webdev.vercel.app,https://chronos-git-fix-adjust-applicat-3fca67-aildsonsh-1784s-projects.vercel.app,https://chronos-i1cnx4csg-aildsonsh-1784s-projects.vercel.app
     depends_on:
       db_resource:
         condition: service_healthy
@@ -97,6 +100,7 @@ services:
       - USER_SERVICE_URL=http://user:8000
       - SECRET_KEY=ca76563c37354029ac4e02d96427a444dce2f9401ddb366afee9e70219885ef44add634887d2956d1cabaec071d4b78d61d4b84bfae6aec80213f0a27d350864
       - JWT_ALGORITHM=HS512
+      - CORS_ORIGINS=http://localhost:3000,https://chronos-webdev.vercel.app,https://chronos-git-fix-adjust-applicat-3fca67-aildsonsh-1784s-projects.vercel.app,https://chronos-i1cnx4csg-aildsonsh-1784s-projects.vercel.app
     depends_on:
       db_booking:
         condition: service_healthy

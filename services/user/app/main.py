@@ -7,6 +7,7 @@ from html import escape
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.database import Base, engine
 from app.routers import users
@@ -35,6 +36,13 @@ tags_metadata = [
 
 _CONFIG = load_service_config("user")
 _ROOT_PATH = os.getenv("APP_ROOT_PATH", "")
+
+# CORS
+_raw_origins = os.getenv("CORS_ORIGINS", "*")
+if _raw_origins == "*":
+    CORS_ALLOW_ORIGINS = ["*"]
+else:
+    CORS_ALLOW_ORIGINS = [origin.strip() for origin in _raw_origins.split(",")]
 
 # Event Publisher for user.deleted events (only if Redis is configured)
 _EVENT_PUBLISHER = (
@@ -115,9 +123,25 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+# Configuração de CORS
+raw_origins = os.getenv("CORS_ORIGINS", "")
+
+if raw_origins:
+    origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+else:
+    # fallback dev 
+    origins = ["http://localhost:3000"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.state.config = _CONFIG
 app.state.event_publisher = _EVENT_PUBLISHER
-
 
 def custom_openapi_schema():
     if app.openapi_schema:
