@@ -1,6 +1,7 @@
 from uuid import uuid4
 
 from fastapi import status
+from conftest import set_test_tenant_id
 
 
 def _labels():
@@ -44,6 +45,9 @@ def test_tenant_crud_flow(client):
     tenant = create_resp.json()
     tenant_id = tenant["id"]
     assert tenant["settings"]["business_type"] == payload["settings"]["business_type"]
+    
+    # Set the token to match this tenant for authenticated operations
+    set_test_tenant_id(tenant_id)
 
     list_resp = client.get("/tenants/")
     assert list_resp.status_code == status.HTTP_200_OK
@@ -80,6 +84,7 @@ def test_duplicate_domain_returns_400(client):
 
 def test_settings_not_found_returns_404(client):
     tenant_id = str(uuid4())
+    set_test_tenant_id(tenant_id)  # Set token to match this tenant
     response = client.get(f"/tenants/{tenant_id}/settings")
     assert response.status_code == status.HTTP_404_NOT_FOUND
 

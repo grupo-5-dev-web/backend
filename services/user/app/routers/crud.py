@@ -8,12 +8,19 @@ from app.core.security import get_password_hash
 
 
 def create_user(db: Session, payload: UserCreate) -> User:
+    # Hash password if provided, otherwise set to None
+    # NOTE: Allowing NULL passwords enables creating user accounts that authenticate via
+    # external identity providers (OAuth, SAML, etc.) rather than traditional password-based login.
+    # Ensure your authentication system handles NULL passwords appropriately and that users
+    # with NULL passwords cannot authenticate via standard password login endpoints.
+    password_hash = get_password_hash(payload.password) if payload.password else None
+    
     user = User(
         tenant_id=payload.tenant_id,
         name=payload.name,
         email=payload.email,
         phone=payload.phone,
-        password_hash=get_password_hash(payload.password),
+        password_hash=password_hash,
         user_type=payload.user_type,
         department=payload.department,
         is_active=payload.is_active,

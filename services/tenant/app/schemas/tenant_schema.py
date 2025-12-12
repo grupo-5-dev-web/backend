@@ -13,13 +13,13 @@ class CustomLabels(BaseModel):
 
 
 class OrganizationSettingsBase(BaseModel):
-    business_type: str
-    timezone: str = "UTC"
-    working_hours_start: time
-    working_hours_end: time
-    booking_interval: int = Field(ge=5, le=480, default=30)
-    advance_booking_days: int = Field(ge=0, le=365, default=30)
-    cancellation_hours: int = Field(ge=0, le=168, default=24)
+    business_type: str = Field(..., examples=["Clínica Médica"])
+    timezone: str = Field(default="UTC", examples=["America/Sao_Paulo"])
+    working_hours_start: time = Field(..., examples=["08:00:00"])
+    working_hours_end: time = Field(..., examples=["18:00:00"])
+    booking_interval: int = Field(ge=5, le=480, default=30, examples=[30])
+    advance_booking_days: int = Field(ge=0, le=365, default=30, examples=[30])
+    cancellation_hours: int = Field(ge=0, le=168, default=24, examples=[24])
     custom_labels: CustomLabels
 
     @model_validator(mode="after")
@@ -62,12 +62,12 @@ class OrganizationSettingsOut(OrganizationSettingsBase):
 
 
 class TenantBase(BaseModel):
-    name: str
-    domain: str
-    logo_url: HttpUrl
-    theme_primary_color: str
-    plan: Literal["basico", "profissional", "corporativo"]
-    is_active: bool = True
+    name: str = Field(..., examples=["Clínica Saúde Total"])
+    domain: str = Field(..., examples=["clinica-saude-total"])
+    logo_url: HttpUrl = Field(..., examples=["https://exemplo.com/logo.png"])
+    theme_primary_color: str = Field(..., examples=["#4A90E2"])
+    plan: Literal["basico", "profissional", "corporativo"] = Field(..., examples=["profissional"])
+    is_active: bool = Field(default=True, examples=[True])
 
     @field_validator("theme_primary_color")
     @classmethod

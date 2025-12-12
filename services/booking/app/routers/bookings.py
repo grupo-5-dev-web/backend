@@ -4,7 +4,7 @@ from shared import ensure_timezone
 from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.core.auth_dependencies import get_current_token, TokenPayload, oauth2_scheme
 from app.services.tenant_validator import validar_tenant_existe
@@ -417,7 +417,11 @@ def update_booking(
     return updated
 
 
-@router.delete("/{booking_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)
+# NOTE: This endpoint uses PATCH with an action-based path (/cancel) rather than a pure RESTful approach.
+# This is a hybrid design choice: PATCH is used because we're updating the booking's status,
+# but /cancel provides clearer intent than a generic PATCH with a status field.
+# Alternative approaches could be: DELETE (for true deletion) or PATCH /{booking_id} with status in body.
+@router.patch("/{booking_id}/cancel", response_model=BookingOut)
 def cancel_booking(
     booking_id: UUID,
     cancel_payload: BookingCancelRequest,
@@ -454,17 +458,16 @@ def cancel_booking(
     
     publisher = getattr(request.app.state, "event_publisher", None)
 
-    deleted = crud.delete_booking(
+    # Cancel the booking using crud function
+    booking = crud.cancel_booking(
         db=db,
-        booking_id=booking_id,
-        deleted_by=current_token.sub,  # quem está cancelando
+        booking=booking,
+        reason=cancel_payload.reason,
+        cancelled_by=current_token.sub,
         publisher=publisher,
     )
 
-    if not deleted:
-        raise HTTPException(404, "Reserva não encontrada")
-
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return booking
 
 
 @router.patch("/{booking_id}/status", response_model=BookingOut)

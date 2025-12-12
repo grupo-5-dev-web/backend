@@ -134,7 +134,7 @@ async def custom_swagger_ui_html():
         <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
         <script>
         const ui = SwaggerUIBundle({{
-            url: '/api-docs/bookings/openapi.json',
+            url: window.location.pathname.replace(/\/docs$/, '') + '/openapi.json',
             dom_id: '#swagger-ui',
             presets: [
                 SwaggerUIBundle.presets.apis,

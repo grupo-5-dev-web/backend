@@ -7,10 +7,10 @@ from app.models.booking import BookingStatus
 
 class RecurringPattern(BaseModel):
     """Padrão de recorrência para reservas repetitivas."""
-    frequency: str = Field(pattern="^(daily|weekly|monthly)$", description="Frequência da recorrência: daily, weekly ou monthly")
-    interval: int = Field(ge=1, le=52, default=1, description="Intervalo entre ocorrências (ex: a cada 2 semanas)")
-    end_date: Optional[datetime] = Field(default=None, description="Data final da recorrência")
-    days_of_week: Optional[list[int]] = Field(default=None, description="Dias da semana para recorrência semanal (0=Segunda, 6=Domingo)")
+    frequency: str = Field(pattern="^(daily|weekly|monthly)$", description="Frequência da recorrência: daily, weekly ou monthly", examples=["weekly"])
+    interval: int = Field(ge=1, le=52, default=1, description="Intervalo entre ocorrências (ex: a cada 2 semanas)", examples=[1])
+    end_date: Optional[datetime] = Field(default=None, description="Data final da recorrência", examples=["2025-12-31T23:59:59Z"])
+    days_of_week: Optional[list[int]] = Field(default=None, description="Dias da semana para recorrência semanal (0=Segunda, 6=Domingo)", examples=[[0, 2, 4]])
 
     @field_validator("days_of_week")
     @classmethod
@@ -24,14 +24,14 @@ class RecurringPattern(BaseModel):
 
 class BookingBase(BaseModel):
     """Schema base para reservas."""
-    tenant_id: UUID = Field(description="ID do tenant (organização)")
-    resource_id: UUID = Field(description="ID do recurso a ser reservado")
-    user_id: UUID = Field(description="ID do usuário responsável pela reserva")
-    client_id: Optional[UUID] = Field(default=None, description="ID do cliente/beneficiário da reserva (pode ser diferente do user_id)")
-    start_time: datetime = Field(description="Data/hora de início da reserva no formato ISO 8601 com timezone (ex: 2025-12-05T14:00:00-03:00 ou 2025-12-05T17:00:00Z). IMPORTANTE: se enviar sem timezone, será interpretado como UTC.")
-    end_time: datetime = Field(description="Data/hora de término da reserva no formato ISO 8601 com timezone (ex: 2025-12-05T15:00:00-03:00 ou 2025-12-05T18:00:00Z). IMPORTANTE: se enviar sem timezone, será interpretado como UTC.")
-    notes: Optional[str] = Field(default=None, description="Observações sobre a reserva")
-    recurring_enabled: bool = Field(default=False, description="Se true, cria reservas recorrentes")
+    tenant_id: UUID = Field(description="ID do tenant (organização)", examples=["550e8400-e29b-41d4-a716-446655440000"])
+    resource_id: UUID = Field(description="ID do recurso a ser reservado", examples=["660e8400-e29b-41d4-a716-446655440001"])
+    user_id: UUID = Field(description="ID do usuário responsável pela reserva", examples=["770e8400-e29b-41d4-a716-446655440002"])
+    client_id: Optional[UUID] = Field(default=None, description="ID do cliente/beneficiário da reserva (pode ser diferente do user_id)", examples=["880e8400-e29b-41d4-a716-446655440003"])
+    start_time: datetime = Field(description="Data/hora de início da reserva no formato ISO 8601 com timezone (ex: 2025-12-05T14:00:00-03:00 ou 2025-12-05T17:00:00Z). IMPORTANTE: se enviar sem timezone, será interpretado como UTC.", examples=["2025-12-15T14:00:00-03:00"])
+    end_time: datetime = Field(description="Data/hora de término da reserva no formato ISO 8601 com timezone (ex: 2025-12-05T15:00:00-03:00 ou 2025-12-05T18:00:00Z). IMPORTANTE: se enviar sem timezone, será interpretado como UTC.", examples=["2025-12-15T15:00:00-03:00"])
+    notes: Optional[str] = Field(default=None, description="Observações sobre a reserva", examples=["Reunião de planejamento trimestral"])
+    recurring_enabled: bool = Field(default=False, description="Se true, cria reservas recorrentes", examples=[False])
     recurring_pattern: Optional[RecurringPattern] = Field(default=None, description="Padrão de recorrência (obrigatório se recurring_enabled=true)")
 
     @field_validator("start_time", "end_time")

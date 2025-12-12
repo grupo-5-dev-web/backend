@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 from sqlalchemy import and_, or_
@@ -56,6 +56,42 @@ def _publish_event(
     )
 
 
+def _create_and_publish_event(
+    db: Session,
+    booking: Booking,
+    event_type: str,
+    payload: dict,
+    publisher: Optional[EventPublisher] = None,
+) -> None:
+    """
+    Helper function to create a database event record and publish an external event.
+    This reduces code duplication across booking operations.
+    
+    Args:
+        db: Database session
+        booking: The booking instance for which the event is being created
+        event_type: The type of event (e.g., "booking.deleted", "booking.cancelled")
+        payload: The event payload dictionary
+        publisher: Optional event publisher for external events
+    """
+    # Create database event record
+    event = BookingEvent(
+        booking_id=booking.id,
+        tenant_id=booking.tenant_id,
+        event_type=event_type,
+        payload=payload,
+    )
+    db.add(event)
+    
+    # Publish external event
+    _publish_event(
+        publisher,
+        event_type,
+        payload,
+        tenant_id=booking.tenant_id,
+    )
+
+
 def create_booking(
     db: Session,
     payload: BookingCreate,
@@ -76,32 +112,28 @@ def create_booking(
     db.add(booking)
     db.flush()
 
-    event = BookingEvent(
-        booking_id=booking.id,
-        tenant_id=booking.tenant_id,
-        event_type="booking.created",
-        payload={
-            "booking_id": str(booking.id),
-            "status": booking.status,
-            "start_time": booking.start_time.isoformat(),
-            "end_time": booking.end_time.isoformat(),
-        },
+    # Create event payload
+    payload = {
+        "booking_id": str(booking.id),
+        "resource_id": str(booking.resource_id),
+        "user_id": str(booking.user_id),
+        "status": booking.status,
+        "start_time": booking.start_time.isoformat(),
+        "end_time": booking.end_time.isoformat(),
+    }
+    
+    # Create database event and publish external event
+    _create_and_publish_event(
+        db,
+        booking,
+        "booking.created",
+        payload,
+        publisher,
     )
-    db.add(event)
+    
     db.commit()
     db.refresh(booking)
 
-    _publish_event(
-        publisher,
-        "booking.created",
-        {
-            "booking_id": str(booking.id),
-            "status": booking.status,
-            "start_time": booking.start_time.isoformat(),
-            "end_time": booking.end_time.isoformat(),
-        },
-        tenant_id=booking.tenant_id,
-    )
     return booking
 
 
@@ -153,26 +185,26 @@ def update_booking(
     for field, value in update_data.items():
         setattr(booking, field, value)
 
-    event = BookingEvent(
-        booking_id=booking.id,
-        tenant_id=booking.tenant_id,
-        event_type="booking.updated",
-        payload={"changed_fields": list(update_data.keys())},
+    # Create event payload
+    payload = {
+        "booking_id": str(booking.id),
+        "resource_id": str(booking.resource_id),
+        "user_id": str(booking.user_id),
+        "changed_fields": list(update_data.keys()),
+    }
+    
+    # Create database event and publish external event
+    _create_and_publish_event(
+        db,
+        booking,
+        "booking.updated",
+        payload,
+        publisher,
     )
-    db.add(event)
 
     db.commit()
     db.refresh(booking)
 
-    _publish_event(
-        publisher,
-        "booking.updated",
-        {
-            "booking_id": str(booking.id),
-            "changes": list(update_data.keys()),
-        },
-        tenant_id=booking.tenant_id,
-    )
     return booking
 
 
@@ -186,35 +218,27 @@ def delete_booking(
     if not booking:
         return False
 
-    # cria evento
-    event = BookingEvent(
-        booking_id=booking.id,
-        tenant_id=booking.tenant_id,
-        event_type="booking.deleted",
-        payload={
-            "booking_id": str(booking.id),
-            "deleted_by": str(deleted_by),
-            "start_time": booking.start_time.isoformat(),
-            "end_time": booking.end_time.isoformat(),
-        },
+    # Create event payload
+    payload = {
+        "booking_id": str(booking.id),
+        "resource_id": str(booking.resource_id),
+        "user_id": str(booking.user_id),
+        "deleted_by": str(deleted_by),
+        "start_time": booking.start_time.isoformat(),
+        "end_time": booking.end_time.isoformat(),
+    }
+    
+    # Create database event and publish external event
+    _create_and_publish_event(
+        db,
+        booking,
+        "booking.deleted",
+        payload,
+        publisher,
     )
-    db.add(event)
 
     db.delete(booking)
     db.commit()
-
-    # publica evento
-    _publish_event(
-        publisher,
-        "booking.deleted",
-        {
-            "booking_id": str(booking.id),
-            "deleted_by": str(deleted_by),
-            "start_time": booking.start_time.isoformat(),
-            "end_time": booking.end_time.isoformat(),
-        },
-        tenant_id=booking.tenant_id,
-    )
 
     return True
 
@@ -231,24 +255,77 @@ def update_booking_status(
 
     booking.status = status
 
-    event = BookingEvent(
-        booking_id=booking.id,
-        tenant_id=booking.tenant_id,
-        event_type="booking.status_changed",
-        payload={"status": status},
+    # Create event payload
+    payload = {
+        "booking_id": str(booking.id),
+        "resource_id": str(booking.resource_id),
+        "user_id": str(booking.user_id),
+        "status": status,
+    }
+    
+    # Create database event and publish external event
+    _create_and_publish_event(
+        db,
+        booking,
+        "booking.status_changed",
+        payload,
+        publisher,
     )
-    db.add(event)
 
     db.commit()
     db.refresh(booking)
 
-    _publish_event(
+    return booking
+
+
+def cancel_booking(
+    db: Session,
+    booking: Booking,
+    reason: str,
+    cancelled_by: UUID,
+    publisher: Optional[EventPublisher] = None,
+) -> Booking:
+    """
+    Cancels a booking and creates appropriate event records in the database and via the event publisher.
+
+    Args:
+        db (Session): The SQLAlchemy database session to use for committing changes.
+        booking (Booking): The booking instance to be cancelled.
+        reason (str): The reason for cancelling the booking.
+        cancelled_by (UUID): The UUID of the user or system cancelling the booking.
+        publisher (Optional[EventPublisher]): Optional event publisher for publishing external events.
+
+    Returns:
+        Booking: The updated booking instance with cancellation details.
+
+    Raises:
+        sqlalchemy.exc.SQLAlchemyError: If a database error occurs during commit.
+    """
+    # Update booking with cancellation details
+    booking.status = BookingStatus.CANCELLED
+    booking.cancellation_reason = reason
+    booking.cancelled_by = cancelled_by
+    booking.cancelled_at = datetime.now(timezone.utc)
+    
+    # Create event payload
+    payload = {
+        "booking_id": str(booking.id),
+        "resource_id": str(booking.resource_id),
+        "user_id": str(booking.user_id),
+        "cancelled_by": str(cancelled_by),
+        "reason": reason,
+    }
+    
+    # Create database event and publish external event
+    _create_and_publish_event(
+        db,
+        booking,
+        "booking.cancelled",
+        payload,
         publisher,
-        "booking.status_changed",
-        {
-            "booking_id": str(booking.id),
-            "status": status,
-        },
-        tenant_id=booking.tenant_id,
     )
+    
+    db.commit()
+    db.refresh(booking)
+    
     return booking

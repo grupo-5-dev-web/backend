@@ -71,8 +71,10 @@ jobs:
             httpx \
             pytest \
             pytest-cov \
+            python-multipart \
             "python-jose[cryptography]" \
-            "passlib[bcrypt]"
+            "passlib[bcrypt]" \
+            "bcrypt<4.1.0"
 
       - name: Run pytest with coverage for ${{ matrix.service }}
         working-directory: services
