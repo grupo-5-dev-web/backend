@@ -302,6 +302,84 @@ async def app_lifespan(app: FastAPI):
     await cleanup_consumer(consumer, consumer_task, logger)
 ```
 
+### Configuração de CORS
+
+Todos os serviços têm configuração de CORS (Cross-Origin Resource Sharing) baseada em ambiente.
+
+#### Comportamento por Ambiente
+
+**Desenvolvimento** (`ENVIRONMENT=development`):
+- Permite todos os domínios (`*`)
+- Útil para desenvolvimento local com frontend em porta diferente
+- Não requer configuração adicional
+
+**Produção** (`ENVIRONMENT=production`):
+- Restringe a domínios específicos configurados em `CORS_ORIGINS`
+- **OBRIGATÓRIO**: `CORS_ORIGINS` deve estar configurado
+- Validação automática: erro se não configurado
+
+#### Variáveis de Ambiente
+
+| Variável | Descrição | Obrigatória | Padrão |
+|----------|-----------|-------------|--------|
+| `ENVIRONMENT` | Ambiente (development/production) | Não | `development` |
+| `CORS_ORIGINS` | Domínios permitidos (separados por vírgula) | Sim (prod) | - |
+| `CORS_ALLOW_CREDENTIALS` | Permitir credenciais (cookies, auth headers) | Não | `false` |
+| `CORS_MAX_AGE` | Cache de preflight requests (segundos) | Não | `600` |
+
+#### Exemplos de Configuração
+
+**Desenvolvimento** (`.env`):
+```bash
+ENVIRONMENT=development
+# CORS_ORIGINS não é necessário - permite todos (*)
+```
+
+**Produção** (`.env`):
+```bash
+ENVIRONMENT=production
+CORS_ORIGINS=https://app.example.com,https://admin.example.com
+CORS_ALLOW_CREDENTIALS=true
+CORS_MAX_AGE=3600
+```
+
+#### Validação
+
+O sistema valida automaticamente:
+- ✅ Em produção, `CORS_ORIGINS` deve estar configurado
+- ✅ Em produção, `CORS_ORIGINS` não pode estar vazio
+- ✅ Quando `CORS_ORIGINS` é `*`, `CORS_ALLOW_CREDENTIALS` não pode ser `true` (especificação CORS)
+
+#### Métodos e Headers Permitidos
+
+Por padrão, todos os serviços permitem:
+- **Métodos**: `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS`
+- **Headers**: Todos (`*`)
+
+#### Testando CORS
+
+```bash
+# Testar preflight request (OPTIONS)
+curl -X OPTIONS http://localhost:8000/users/ \
+  -H "Origin: http://localhost:3000" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: Content-Type" \
+  -v
+
+# Verificar headers CORS na resposta
+curl http://localhost:8000/users/ \
+  -H "Origin: http://localhost:3000" \
+  -v
+```
+
+#### Segurança
+
+⚠️ **IMPORTANTE em Produção**:
+1. **Sempre configure `CORS_ORIGINS`**: Nunca deixe vazio em produção
+2. **Use HTTPS**: Sempre use `https://` nos domínios permitidos
+3. **Seja específico**: Liste apenas domínios que realmente precisam acessar a API
+4. **Evite wildcards**: Não use padrões como `*.example.com` - liste domínios explicitamente
+
 ### Health Checks e Monitoramento
 
 Todos os serviços expõem endpoints de health check para monitoramento Docker/Kubernetes:
@@ -565,7 +643,7 @@ O pipeline de CI executa automaticamente as seguintes etapas em cada Pull Reques
 - [ ] **Hash seguro de senhas**: Substituir implementação placeholder em `user/app/routers/crud.py` por `passlib[bcrypt]` ou `argon2-cffi`.
 - [x] **Variáveis de ambiente**: Extrair credenciais hardcoded do `docker-compose.yml` para `.env` (postgres passwords, redis). ✅ Implementado com validação automática e testes.
 - [ ] **Rate limiting**: Configurar limites por IP/tenant no Nginx usando `limit_req_zone` e `limit_req`.
-- [ ] **CORS configurável**: Adicionar configuração de CORS por ambiente (dev permite `*`, prod restringe domínios).
+- [x] **CORS configurável**: Adicionar configuração de CORS por ambiente (dev permite `*`, prod restringe domínios). ✅ Implementado com validação e testes.
 
 #### 🟡 Observabilidade e Qualidade
 - [x] **Health checks em serviços**: Adicionar endpoints `/health` e `/ready` em cada FastAPI app para monitoramento Docker/Kubernetes. ✅ Implementado com verificação de Database e Redis.

@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse
 
 from app.core.database import Base, engine
 from app.routers import users
-from shared import load_service_config, EventConsumer, cleanup_consumer, EventPublisher, create_health_router
+from shared import load_service_config, EventConsumer, cleanup_consumer, EventPublisher, create_health_router, configure_cors
 from app.consumers import (
     handle_booking_created,
     handle_booking_cancelled,
@@ -117,6 +117,9 @@ app = FastAPI(
 
 app.state.config = _CONFIG
 app.state.event_publisher = _EVENT_PUBLISHER
+
+# Configure CORS
+configure_cors(app)
 
 
 def custom_openapi_schema():

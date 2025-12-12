@@ -10,7 +10,7 @@ from app.core.database import Base, engine
 from app.routers import bookings
 from app.services.organization import default_settings_provider
 from app.consumers import handle_resource_deleted, handle_user_deleted, handle_tenant_deleted
-from shared import EventPublisher, EventConsumer, cleanup_consumer, load_service_config, create_health_router
+from shared import EventPublisher, EventConsumer, cleanup_consumer, load_service_config, create_health_router, configure_cors
 import asyncio
 import logging
 
@@ -97,6 +97,9 @@ app = FastAPI(
 app.state.config = _CONFIG
 app.state.event_publisher = _EVENT_PUBLISHER
 app.state.settings_provider = default_settings_provider
+
+# Configure CORS
+configure_cors(app)
 
 
 def custom_openapi_schema():

@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse
 
 from app.core.database import Base, engine
 from app.routers import categories, resources
-from shared import default_settings_provider, load_service_config, EventConsumer, cleanup_consumer, EventPublisher, create_health_router
+from shared import default_settings_provider, load_service_config, EventConsumer, cleanup_consumer, EventPublisher, create_health_router, configure_cors
 from app.consumers import (
     handle_booking_created,
     handle_booking_cancelled,
@@ -124,6 +124,9 @@ app.state.settings_provider = default_settings_provider
 app.state.event_publisher = _EVENT_PUBLISHER
 # carrega URL do serviço tenants no docker-compose
 app.state.tenant_service_url = os.getenv("TENANT_SERVICE_URL")
+
+# Configure CORS
+configure_cors(app)
 
 
 def custom_openapi_schema():

@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse
 from app.core.database import Base, engine
 from app.models import tenant as tenant_models
 from app.routers import endpoints as tenants
-from shared import database_lifespan_factory, load_service_config, EventPublisher, create_health_router
+from shared import database_lifespan_factory, load_service_config, EventPublisher, create_health_router, configure_cors
 
 tags_metadata = [
     {
@@ -50,6 +50,9 @@ app = FastAPI(
 
 app.state.config = _CONFIG
 app.state.event_publisher = _EVENT_PUBLISHER
+
+# Configure CORS
+configure_cors(app)
 
 
 def custom_openapi_schema():
