@@ -137,7 +137,6 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-# ⚠️ IMPORTANTE: .env contém credenciais sensíveis e NUNCA deve ser commitado
 .env
 .envrc
 .venv

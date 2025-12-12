@@ -359,6 +359,98 @@ docker compose up --build --force-recreate # rebuilda tudo (mais adequado para n
 	> **Nota**: Os serviços adicionam automaticamente os prefixes corretos (ex: `/tenants` para tenant service).
 7. Repita o processo para cada microserviço em portas diferentes caso queira o ecossistema completo.
 
+### ⚙️ Configuração de Variáveis de Ambiente
+
+O projeto utiliza variáveis de ambiente para gerenciar credenciais e configurações sensíveis. **Nunca commite o arquivo `.env` no git** - ele contém credenciais e está no `.gitignore`.
+
+#### Setup Inicial
+
+1. **Copie o arquivo de exemplo**:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Configure as variáveis** no arquivo `.env`:
+   - Edite `.env` e configure valores apropriados para seu ambiente
+   - Em produção, use senhas fortes e gere uma `SECRET_KEY` segura:
+     ```bash
+     openssl rand -hex 64
+     ```
+
+3. **Valide sua configuração**:
+   ```bash
+   ./scripts/validate_env.sh
+   ```
+
+#### Variáveis Principais
+
+| Variável | Descrição | Obrigatória | Padrão (Dev) |
+|----------|-----------|-------------|--------------|
+| `POSTGRES_USER` | Usuário do PostgreSQL | ✅ | `user` |
+| `POSTGRES_PASSWORD` | Senha do PostgreSQL | ✅ | `password` |
+| `POSTGRES_DB_USER` | Nome do banco do serviço User | ✅ | `userdb` |
+| `POSTGRES_DB_TENANT` | Nome do banco do serviço Tenant | ✅ | `tenantdb` |
+| `POSTGRES_DB_RESOURCE` | Nome do banco do serviço Resource | ✅ | `resourcedb` |
+| `POSTGRES_DB_BOOKING` | Nome do banco do serviço Booking | ✅ | `bookingdb` |
+| `REDIS_URL` | URL de conexão com Redis | ✅ | `redis://redis:6379` |
+| `SECRET_KEY` | Chave secreta para JWT | ✅ | (gerar com `openssl rand -hex 64`) |
+| `JWT_ALGORITHM` | Algoritmo JWT | ✅ | `HS512` |
+| `ACCESS_TOKEN_EXPIRE_HOURS` | Expiração do token (horas) | ✅ | `24` |
+| `TENANT_SERVICE_URL` | URL do serviço Tenant | ✅ | `http://tenant:8000` |
+| `RESOURCE_SERVICE_URL` | URL do serviço Resource | ✅ | `http://resource:8000` |
+| `USER_SERVICE_URL` | URL do serviço User | ✅ | `http://user:8000` |
+| `BOOKING_SERVICE_URL` | URL do serviço Booking | ✅ | `http://booking:8000` |
+
+#### URLs de Banco de Dados
+
+As URLs de banco de dados são construídas automaticamente a partir das variáveis individuais:
+```
+postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db_<service>:5432/${POSTGRES_DB_<SERVICE>}
+```
+
+Você também pode definir URLs completas diretamente:
+- `USER_DATABASE_URL`
+- `TENANT_DATABASE_URL`
+- `RESOURCE_DATABASE_URL`
+- `BOOKING_DATABASE_URL`
+
+#### Segurança em Produção
+
+⚠️ **IMPORTANTE**: Em produção:
+
+1. **Nunca use valores padrão**: Defina todas as variáveis explicitamente
+2. **Use senhas fortes**: Gere senhas seguras para `POSTGRES_PASSWORD`
+3. **Gere SECRET_KEY segura**: Use `openssl rand -hex 64` para gerar uma chave de 64 bytes
+4. **Configure ENVIRONMENT**: Defina `ENVIRONMENT=production` para ativar validações rigorosas
+5. **Valide antes de deploy**: Execute `./scripts/validate_env.sh` antes de fazer deploy
+
+O código valida automaticamente valores inseguros em produção e lança erros se detectar:
+- Senhas padrão (`password`, `123456`, etc.)
+- SECRET_KEY padrão ou muito curta
+- URLs de banco com credenciais padrão
+
+#### Validação Automática
+
+O script `scripts/validate_env.sh` valida:
+- ✅ Todas as variáveis obrigatórias estão definidas
+- ✅ Formato correto das URLs de banco de dados
+- ✅ Ausência de valores padrão inseguros
+- ✅ SECRET_KEY tem tamanho adequado
+
+Execute após configurar `.env`:
+```bash
+./scripts/validate_env.sh
+```
+
+#### Docker Compose
+
+O `docker-compose.yml` carrega automaticamente variáveis do `.env` usando `env_file: .env`. Todos os serviços e bancos de dados PostgreSQL usam essas variáveis.
+
+Para usar um arquivo `.env` diferente:
+```bash
+docker compose --env-file .env.production up
+```
+
 ### 🔧 Pipeline CI (GitHub Actions)
 
 O pipeline de CI executa automaticamente as seguintes etapas em cada Pull Request aberto, atualizado ou com novos commits para a branch main:
@@ -375,7 +467,7 @@ O pipeline de CI executa automaticamente as seguintes etapas em cada Pull Reques
 
 #### 🔴 Segurança e Infraestrutura
 - [ ] **Hash seguro de senhas**: Substituir implementação placeholder em `user/app/routers/crud.py` por `passlib[bcrypt]` ou `argon2-cffi`.
-- [ ] **Variáveis de ambiente**: Extrair credenciais hardcoded do `docker-compose.yml` para `.env` (postgres passwords, redis).
+- [x] **Variáveis de ambiente**: Extrair credenciais hardcoded do `docker-compose.yml` para `.env` (postgres passwords, redis). ✅ Implementado com validação automática e testes.
 - [ ] **Rate limiting**: Configurar limites por IP/tenant no Nginx usando `limit_req_zone` e `limit_req`.
 - [ ] **CORS configurável**: Adicionar configuração de CORS por ambiente (dev permite `*`, prod restringe domínios).
 

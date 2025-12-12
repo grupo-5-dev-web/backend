@@ -21,13 +21,15 @@ services:
     expose:
       - "8000"
     container_name: user
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql://user:password@db_user:5432/userdb
-      - REDIS_URL=redis://redis:6379
-      - TENANT_SERVICE_URL=http://tenant:8000
-      - SECRET_KEY=ca76563c37354029ac4e02d96427a444dce2f9401ddb366afee9e70219885ef44add634887d2956d1cabaec071d4b78d61d4b84bfae6aec80213f0a27d350864
-      - JWT_ALGORITHM=HS512
-      - ACCESS_TOKEN_EXPIRE_HOURS=24
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db_user:5432/${POSTGRES_DB_USER}
+      - REDIS_URL=${REDIS_URL}
+      - TENANT_SERVICE_URL=${TENANT_SERVICE_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM}
+      - ACCESS_TOKEN_EXPIRE_HOURS=${ACCESS_TOKEN_EXPIRE_HOURS}
     depends_on:
       db_user:
         condition: service_healthy
@@ -45,11 +47,13 @@ services:
       - "8000"
     container_name: tenant
     hostname: tenant
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql://user:password@db_tenant:5432/tenantdb
-      - SECRET_KEY=ca76563c37354029ac4e02d96427a444dce2f9401ddb366afee9e70219885ef44add634887d2956d1cabaec071d4b78d61d4b84bfae6aec80213f0a27d350864
-      - JWT_ALGORITHM=HS512
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db_tenant:5432/${POSTGRES_DB_TENANT}
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM}
+      - REDIS_URL=${REDIS_URL}
     depends_on:
       db_tenant:
         condition: service_healthy
@@ -66,13 +70,15 @@ services:
     expose:
       - "8000"
     container_name: resource
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql://user:password@db_resource:5432/resourcedb
-      - REDIS_URL=redis://redis:6379
-      - TENANT_SERVICE_URL=http://tenant:8000
-      - BOOKING_SERVICE_URL=http://booking:8000
-      - SECRET_KEY=ca76563c37354029ac4e02d96427a444dce2f9401ddb366afee9e70219885ef44add634887d2956d1cabaec071d4b78d61d4b84bfae6aec80213f0a27d350864
-      - JWT_ALGORITHM=HS512
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db_resource:5432/${POSTGRES_DB_RESOURCE}
+      - REDIS_URL=${REDIS_URL}
+      - TENANT_SERVICE_URL=${TENANT_SERVICE_URL}
+      - BOOKING_SERVICE_URL=${BOOKING_SERVICE_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM}
     depends_on:
       db_resource:
         condition: service_healthy
@@ -89,14 +95,16 @@ services:
     expose:
       - "8000"
     container_name: booking
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql://user:password@db_booking:5432/bookingdb
-      - REDIS_URL=redis://redis:6379
-      - TENANT_SERVICE_URL=http://tenant:8000
-      - RESOURCE_SERVICE_URL=http://resource:8000
-      - USER_SERVICE_URL=http://user:8000
-      - SECRET_KEY=ca76563c37354029ac4e02d96427a444dce2f9401ddb366afee9e70219885ef44add634887d2956d1cabaec071d4b78d61d4b84bfae6aec80213f0a27d350864
-      - JWT_ALGORITHM=HS512
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db_booking:5432/${POSTGRES_DB_BOOKING}
+      - REDIS_URL=${REDIS_URL}
+      - TENANT_SERVICE_URL=${TENANT_SERVICE_URL}
+      - RESOURCE_SERVICE_URL=${RESOURCE_SERVICE_URL}
+      - USER_SERVICE_URL=${USER_SERVICE_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM}
     depends_on:
       db_booking:
         condition: service_healthy
@@ -108,12 +116,14 @@ services:
 
   db_user:
     image: postgres:15
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: userdb
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB_USER}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d userdb"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB_USER}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -123,12 +133,14 @@ services:
 
   db_tenant:
     image: postgres:15
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: tenantdb
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB_TENANT}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d tenantdb"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB_TENANT}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -138,12 +150,14 @@ services:
 
   db_resource:
     image: postgres:15
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: resourcedb
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB_RESOURCE}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d resourcedb"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB_RESOURCE}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -153,12 +167,14 @@ services:
 
   db_booking:
     image: postgres:15
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: bookingdb
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB_BOOKING}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d bookingdb"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB_BOOKING}"]
       interval: 5s
       timeout: 5s
       retries: 5
