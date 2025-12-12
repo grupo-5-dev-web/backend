@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse
 
 from app.core.database import Base, engine
 from app.routers import categories, resources
-from shared import default_settings_provider, load_service_config, EventConsumer, cleanup_consumer, EventPublisher
+from shared import default_settings_provider, load_service_config, EventConsumer, cleanup_consumer, EventPublisher, create_health_router
 from app.consumers import (
     handle_booking_created,
     handle_booking_cancelled,
@@ -170,6 +170,14 @@ async def custom_swagger_ui_html():
     </body>
     </html>
     """)
+
+# Health check endpoints
+health_router = create_health_router(
+    service_name="resource",
+    database_engine=engine,
+    redis_client=_CONFIG.redis.url if _CONFIG.redis.url else None,
+)
+app.include_router(health_router)
 
 app.include_router(categories.router, prefix="/categories")
 app.include_router(resources.router, prefix="/resources")

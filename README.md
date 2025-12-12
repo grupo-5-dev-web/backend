@@ -302,6 +302,102 @@ async def app_lifespan(app: FastAPI):
     await cleanup_consumer(consumer, consumer_task, logger)
 ```
 
+### Health Checks e Monitoramento
+
+Todos os serviços expõem endpoints de health check para monitoramento Docker/Kubernetes:
+
+#### Endpoints Disponíveis
+
+**`GET /health`** - Health Check Básico
+- Sempre retorna `200 OK` se o serviço está rodando
+- Não verifica dependências (use `/ready` para isso)
+- Resposta:
+  ```json
+  {
+    "status": "ok",
+    "service": "user",
+    "timestamp": "2025-01-15T10:30:00Z"
+  }
+  ```
+
+**`GET /ready`** - Readiness Check
+- Verifica se o serviço está pronto para receber tráfego
+- Verifica dependências: Database (obrigatório) e Redis (opcional)
+- Retorna `200 OK` se tudo está saudável, `503 Service Unavailable` se alguma dependência falhou
+- Resposta (sucesso):
+  ```json
+  {
+    "status": "ready",
+    "service": "user",
+    "timestamp": "2025-01-15T10:30:00Z",
+    "checks": {
+      "database": true,
+      "redis": true
+    }
+  }
+  ```
+- Resposta (falha):
+  ```json
+  {
+    "status": "not_ready",
+    "service": "user",
+    "timestamp": "2025-01-15T10:30:00Z",
+    "checks": {
+      "database": false,
+      "redis": true
+    }
+  }
+  ```
+
+#### Uso com Docker Compose
+
+Os serviços já estão configurados com healthchecks no `docker-compose.yml`:
+- Verifica `/ready` a cada 10 segundos
+- Timeout de 5 segundos
+- 3 tentativas antes de marcar como unhealthy
+- Período inicial de 30 segundos para inicialização
+
+```bash
+# Verificar status dos healthchecks
+docker compose ps
+
+# Ver logs de healthcheck de um serviço
+docker compose logs user | grep health
+```
+
+#### Uso com Kubernetes
+
+Configure probes no seu deployment:
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 8000
+  initialDelaySeconds: 30
+  periodSeconds: 5
+```
+
+#### Testando Manualmente
+
+```bash
+# Health check básico
+curl http://localhost:8000/health
+
+# Readiness check (verifica dependências)
+curl http://localhost:8000/ready
+
+# Com autenticação (se necessário)
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/ready
+```
+
 ### Testes automatizados
 - `pytest` configurado para cada serviço com bancos SQLite isolados.
 - **Booking**: ciclo completo de reservas, conflitos de horário, validações de janelas de antecedência/cancelamento, flag `can_cancel` e testes de handlers de cascata (resource.deleted, user.deleted, tenant.deleted).
@@ -472,7 +568,7 @@ O pipeline de CI executa automaticamente as seguintes etapas em cada Pull Reques
 - [ ] **CORS configurável**: Adicionar configuração de CORS por ambiente (dev permite `*`, prod restringe domínios).
 
 #### 🟡 Observabilidade e Qualidade
-- [ ] **Health checks em serviços**: Adicionar endpoints `/health` e `/ready` em cada FastAPI app para monitoramento Docker/Kubernetes.
+- [x] **Health checks em serviços**: Adicionar endpoints `/health` e `/ready` em cada FastAPI app para monitoramento Docker/Kubernetes. ✅ Implementado com verificação de Database e Redis.
 - [ ] **Logging estruturado**: Padronizar logs JSON com contexto (tenant_id, request_id, trace_id) usando `structlog` ou `python-json-logger`.
 - [ ] **Métricas (Prometheus)**: Expor `/metrics` com contadores de requests, latências e erros via `prometheus-fastapi-instrumentator`.
 - [ ] **Testes de integração**: Criar suíte validando fluxo completo (tenant settings → disponibilidade → criação de booking com conflitos).

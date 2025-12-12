@@ -10,7 +10,7 @@ COPY services/reservation/app /srv/reservation/app
 COPY services/reservation/alembic.ini /srv/reservation/alembic.ini
 COPY services/reservation/alembic /srv/reservation/alembic
 
-RUN pip install --no-cache-dir fastapi uvicorn psycopg2-binary sqlalchemy redis python-dotenv email-validator alembic httpx
+RUN pip install --no-cache-dir fastapi uvicorn psycopg2-binary sqlalchemy redis python-dotenv email-validator alembic httpx structlog
 
 ENV PYTHONPATH="/srv:/srv/reservation"
 

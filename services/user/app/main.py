@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse
 
 from app.core.database import Base, engine
 from app.routers import users
-from shared import load_service_config, EventConsumer, cleanup_consumer, EventPublisher
+from shared import load_service_config, EventConsumer, cleanup_consumer, EventPublisher, create_health_router
 from app.consumers import (
     handle_booking_created,
     handle_booking_cancelled,
@@ -165,6 +165,15 @@ async def custom_swagger_ui_html():
     """)
 
 app.state.tenant_service_url = os.getenv("TENANT_SERVICE_URL")
+
+# Health check endpoints
+health_router = create_health_router(
+    service_name="user",
+    database_engine=engine,
+    redis_client=_CONFIG.redis.url if _CONFIG.redis.url else None,
+)
+app.include_router(health_router)
+
 app.include_router(users.router)
 
 

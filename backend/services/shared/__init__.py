@@ -14,6 +14,7 @@ from .organization import (
     can_cancel_booking,
 )
 from .startup import database_lifespan, database_lifespan_factory
+from .logging import configure_logging, RequestContextLogMiddleware
 
 __all__ = [
     "ServiceConfig",
@@ -30,4 +31,6 @@ __all__ = [
     "minutes_since_midnight",
     "database_lifespan",
     "database_lifespan_factory",
+    "configure_logging",
+    "RequestContextLogMiddleware",
 ]

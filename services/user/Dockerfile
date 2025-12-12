@@ -3,6 +3,9 @@ FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1 \
 	PYTHONDONTWRITEBYTECODE=1
 
+# Install wget for healthchecks
+RUN apt-get update && apt-get install -y --no-install-recommends wget && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /srv
 
 COPY services/shared /srv/shared

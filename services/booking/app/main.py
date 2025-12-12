@@ -10,7 +10,7 @@ from app.core.database import Base, engine
 from app.routers import bookings
 from app.services.organization import default_settings_provider
 from app.consumers import handle_resource_deleted, handle_user_deleted, handle_tenant_deleted
-from shared import EventPublisher, EventConsumer, cleanup_consumer, load_service_config
+from shared import EventPublisher, EventConsumer, cleanup_consumer, load_service_config, create_health_router
 import asyncio
 import logging
 
@@ -151,6 +151,15 @@ async def custom_swagger_ui_html():
 app.state.tenant_service_url = os.getenv("TENANT_SERVICE_URL")
 app.state.resource_service_url = os.getenv("RESOURCE_SERVICE_URL")
 app.state.user_service_url = os.getenv("USER_SERVICE_URL")
+
+# Health check endpoints
+health_router = create_health_router(
+    service_name="booking",
+    database_engine=engine,
+    redis_client=_CONFIG.redis.url if _CONFIG.redis.url else None,
+)
+app.include_router(health_router)
+
 app.include_router(bookings.router)
 
 

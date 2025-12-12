@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse
 from app.core.database import Base, engine
 from app.models import tenant as tenant_models
 from app.routers import endpoints as tenants
-from shared import database_lifespan_factory, load_service_config, EventPublisher
+from shared import database_lifespan_factory, load_service_config, EventPublisher, create_health_router
 
 tags_metadata = [
     {
@@ -96,6 +96,14 @@ async def custom_swagger_ui_html():
     </body>
     </html>
     """)
+
+# Health check endpoints
+health_router = create_health_router(
+    service_name="tenant",
+    database_engine=engine,
+    redis_client=_CONFIG.redis.url if _CONFIG.redis.url else None,
+)
+app.include_router(health_router)
 
 # add as rotas definidas em endpoints.py aqui, pq aí as urls funcionam
 app.include_router(tenants.router, prefix="/tenants")

@@ -7,7 +7,13 @@ from app.core.database import Base, engine
 from app.models import booking as booking_models
 from app.routers import bookings
 from app.services.organization import default_settings_provider
-from shared import EventPublisher, database_lifespan_factory, load_service_config
+from shared import (
+    EventPublisher,
+    RequestContextLogMiddleware,
+    configure_logging,
+    database_lifespan_factory,
+    load_service_config,
+)
 
 tags_metadata = [
     {
@@ -19,6 +25,7 @@ tags_metadata = [
 _CONFIG = load_service_config("reservation")
 _ROOT_PATH = os.getenv("APP_ROOT_PATH", "")
 _EVENT_PUBLISHER = EventPublisher(_CONFIG.redis.url, _CONFIG.redis.stream)
+_LOGGER = configure_logging("reservation")
 
 lifespan = database_lifespan_factory(
     service_name="Reservation Service",
@@ -41,6 +48,7 @@ app = FastAPI(
 app.state.config = _CONFIG
 app.state.event_publisher = _EVENT_PUBLISHER
 app.state.settings_provider = default_settings_provider
+app.add_middleware(RequestContextLogMiddleware, logger=_LOGGER)
 
 
 def custom_openapi_schema():

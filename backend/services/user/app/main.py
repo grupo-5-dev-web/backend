@@ -6,7 +6,12 @@ from fastapi.openapi.utils import get_openapi
 from app.core.database import Base, engine
 from app.models import user as user_models
 from app.routers import users
-from shared import database_lifespan_factory, load_service_config
+from shared import (
+    RequestContextLogMiddleware,
+    configure_logging,
+    database_lifespan_factory,
+    load_service_config,
+)
 
 tags_metadata = [
     {
@@ -17,6 +22,7 @@ tags_metadata = [
 
 _CONFIG = load_service_config("user")
 _ROOT_PATH = os.getenv("APP_ROOT_PATH", "")
+_LOGGER = configure_logging("user")
 
 lifespan = database_lifespan_factory(
     service_name="User Service",
@@ -37,6 +43,7 @@ app = FastAPI(
 )
 
 app.state.config = _CONFIG
+app.add_middleware(RequestContextLogMiddleware, logger=_LOGGER)
 
 
 def custom_openapi_schema():

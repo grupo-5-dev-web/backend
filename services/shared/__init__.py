@@ -3,6 +3,7 @@
 from .config import ServiceConfig, load_service_config
 from .messaging import EventPublisher
 from .event_consumer import EventConsumer, cleanup_consumer
+from .health import create_health_router, check_database_health, check_redis_health
 from .organization import (
     OrganizationSettings,
     SettingsProvider,
@@ -22,6 +23,9 @@ __all__ = [
     "EventPublisher",
     "EventConsumer",
     "cleanup_consumer",
+    "create_health_router",
+    "check_database_health",
+    "check_redis_health",
     "OrganizationSettings",
     "SettingsProvider",
     "default_settings_provider",
