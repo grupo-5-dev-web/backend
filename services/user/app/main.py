@@ -116,13 +116,21 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+# CORS configuration with smart defaults
 raw_origins = os.getenv("CORS_ORIGINS", "")
 
 if raw_origins:
+    # Explicit configuration provided
     origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
 else:
-    # fallback dev 
-    origins = ["http://localhost:3000"]
+    # Fallback: allow all for dev/test, warn in production
+    is_dev = os.getenv("ENVIRONMENT", "development") in ["development", "dev", "test"]
+    if is_dev:
+        origins = ["*"]
+        logger.warning("CORS_ORIGINS not set. Using wildcard (*) for development. Set CORS_ORIGINS in production!")
+    else:
+        logger.error("CORS_ORIGINS not configured! Set CORS_ORIGINS environment variable.")
+        origins = ["*"]  # Fallback to avoid breaking, but logged as error
 
 app.add_middleware(
     CORSMiddleware,
