@@ -116,10 +116,6 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-app.state.config = _CONFIG
-app.state.event_publisher = _EVENT_PUBLISHER
-
-# Configure CORS (after app.state setup)
 raw_origins = os.getenv("CORS_ORIGINS", "")
 
 if raw_origins:
@@ -135,6 +131,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.state.config = _CONFIG
+app.state.event_publisher = _EVENT_PUBLISHER
 
 def custom_openapi_schema():
     if app.openapi_schema:

@@ -119,13 +119,6 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-app.state.config = _CONFIG
-app.state.settings_provider = default_settings_provider
-app.state.event_publisher = _EVENT_PUBLISHER
-# carrega URL do serviço tenants no docker-compose
-app.state.tenant_service_url = os.getenv("TENANT_SERVICE_URL")
-
-# Configure CORS (after app.state setup)
 raw_origins = os.getenv("CORS_ORIGINS", "")
 
 if raw_origins:
@@ -141,6 +134,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.state.config = _CONFIG
+app.state.settings_provider = default_settings_provider
+app.state.event_publisher = _EVENT_PUBLISHER
+# carrega URL do serviço tenants no docker-compose
+app.state.tenant_service_url = os.getenv("TENANT_SERVICE_URL")
 
 
 def custom_openapi_schema():
