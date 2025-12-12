@@ -29,5 +29,4 @@ def get_cors_origins() -> List[str]:
         logger.warning("CORS_ORIGINS not set. Using wildcard (*) for development. Set CORS_ORIGINS in production!")
         return ["*"]
     else:
-        logger.error("CORS_ORIGINS environment variable must be set in production. Refusing to start with insecure CORS configuration.")
         raise RuntimeError("CORS_ORIGINS environment variable must be set in production. Refusing to start with insecure CORS configuration.")
