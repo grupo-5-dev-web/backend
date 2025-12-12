@@ -206,6 +206,36 @@ def compute_availability(
     target_date: date,
     auth_token: str | None = None,
 ) -> dict:
+    """Calcula disponibilidade de recurso com cache Redis.
+    
+    Args:
+        app_state: Estado da aplicação FastAPI
+        db_session: Sessão do banco de dados
+        resource_id: ID do recurso
+        target_date: Data para calcular disponibilidade
+        auth_token: Token de autenticação (opcional)
+        
+    Returns:
+        Dicionário com disponibilidade do recurso
+    """
+    date_str = target_date.isoformat()
+    
+    # Tentar buscar do cache primeiro
+    cache = getattr(app_state, "redis_cache", None)
+    if cache is None:
+        # Tentar criar cache a partir da config
+        config = getattr(app_state, "config", None)
+        if config and hasattr(config, "redis"):
+            from shared.cache import create_redis_cache
+            cache = create_redis_cache(config.redis.url)
+            if cache:
+                setattr(app_state, "redis_cache", cache)
+    
+    if cache is not None:
+        from shared.cache import get_cached_availability
+        cached_availability = get_cached_availability(cache, resource_id, date_str)
+        if cached_availability is not None:
+            return cached_availability
 
     resource = crud.buscar_recurso(db_session, resource_id)
     if not resource:
@@ -302,10 +332,18 @@ def compute_availability(
         if not _is_slot_conflicted(slot, bookings)
     ]
 
-    return {
+    result = {
         "resource_id": str(resource.id),
         "tenant_id": str(resource.tenant_id),
         "date": target_date.isoformat(),
         "timezone": settings.timezone,
         "slots": filtered_slots,
     }
+    
+    # Armazenar no cache se disponível
+    if cache is not None:
+        from shared.cache import set_cached_availability, get_cache_ttl
+        ttl = get_cache_ttl("availability", default=300)
+        set_cached_availability(cache, resource_id, date_str, result, ttl=ttl)
+    
+    return result

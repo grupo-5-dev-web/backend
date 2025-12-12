@@ -51,6 +51,12 @@ app = FastAPI(
 app.state.config = _CONFIG
 app.state.event_publisher = _EVENT_PUBLISHER
 
+# Initialize Redis cache if available
+from shared.cache import create_redis_cache
+cache = create_redis_cache(_CONFIG.redis.url)
+if cache:
+    app.state.redis_cache = cache
+
 # Configure CORS
 configure_cors(app)
 

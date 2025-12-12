@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from datetime import datetime, time, timedelta, timezone
 from typing import Callable
 from uuid import UUID
@@ -8,6 +8,14 @@ import os
 import httpx
 from fastapi import HTTPException, status
 from zoneinfo import ZoneInfo
+
+from .cache import (
+    create_redis_cache,
+    get_cached_settings,
+    set_cached_settings,
+    invalidate_settings_cache,
+    get_cache_ttl,
+)
 
 
 @dataclass(frozen=True)
@@ -52,7 +60,30 @@ def _build_settings(payload: dict) -> OrganizationSettings:
 def default_settings_provider(
     tenant_id: UUID,
     auth_token: Optional[str] = None,
+    cache: Optional[object] = None,
 ) -> OrganizationSettings:
+    """Provider de settings com suporte a cache Redis.
+    
+    Args:
+        tenant_id: ID do tenant
+        auth_token: Token de autenticação (opcional)
+        cache: Cliente Redis para cache (opcional)
+        
+    Returns:
+        OrganizationSettings do tenant
+    """
+    # Tentar buscar do cache primeiro
+    if cache is not None:
+        cached_data = get_cached_settings(cache, tenant_id)
+        if cached_data is not None:
+            # Converter strings de time de volta para objetos time
+            if isinstance(cached_data.get("working_hours_start"), str):
+                cached_data["working_hours_start"] = time.fromisoformat(cached_data["working_hours_start"])
+            if isinstance(cached_data.get("working_hours_end"), str):
+                cached_data["working_hours_end"] = time.fromisoformat(cached_data["working_hours_end"])
+            return _build_settings(cached_data)
+    
+    # Cache miss ou cache não disponível - buscar via HTTP
     base_url = os.getenv("TENANT_SERVICE_URL")
     if base_url:
         url = f"{base_url.rstrip('/')}/tenants/{tenant_id}/settings"
@@ -64,10 +95,28 @@ def default_settings_provider(
         try:
             response = httpx.get(url, timeout=2.0, headers=headers)
             response.raise_for_status()
-            return _build_settings(response.json())
+            settings_data = response.json()
+            settings = _build_settings(settings_data)
+            
+            # Armazenar no cache se disponível
+            if cache is not None:
+                ttl = get_cache_ttl("settings", default=300)
+                # Converter settings para dict para cache
+                settings_dict = {
+                    "timezone": settings.timezone,
+                    "working_hours_start": settings.working_hours_start.isoformat(),
+                    "working_hours_end": settings.working_hours_end.isoformat(),
+                    "booking_interval": settings.booking_interval,
+                    "advance_booking_days": settings.advance_booking_days,
+                    "cancellation_hours": settings.cancellation_hours,
+                }
+                set_cached_settings(cache, tenant_id, settings_dict, ttl=ttl)
+            
+            return settings
         except Exception:
             pass
 
+    # Fallback para defaults
     return _build_settings({})
 
 
@@ -75,17 +124,38 @@ def resolve_settings_provider(
     app_state,
     auth_token: Optional[str] = None,
 ) -> SettingsProvider:
+    """Resolve settings provider com cache se disponível.
     
+    Args:
+        app_state: Estado da aplicação FastAPI
+        auth_token: Token de autenticação (opcional)
+        
+    Returns:
+        Função provider que retorna OrganizationSettings
+    """
     base_provider = getattr(app_state, "settings_provider", None)
     if base_provider is None:
         base_provider = default_settings_provider
         setattr(app_state, "settings_provider", base_provider)
+    
+    # Obter cache do app_state se disponível
+    cache = getattr(app_state, "redis_cache", None)
+    if cache is None:
+        # Tentar criar cache a partir da config
+        config = getattr(app_state, "config", None)
+        if config and hasattr(config, "redis"):
+            from .cache import create_redis_cache
+            cache = create_redis_cache(config.redis.url)
+            if cache:
+                setattr(app_state, "redis_cache", cache)
 
     if auth_token is None:
-        return base_provider
+        def provider(tenant_id: UUID):
+            return base_provider(tenant_id, auth_token=None, cache=cache)
+        return provider
 
     def provider_with_auth(tenant_id: UUID):
-        return base_provider(tenant_id, auth_token=auth_token)
+        return base_provider(tenant_id, auth_token=auth_token, cache=cache)
 
     return provider_with_auth
 

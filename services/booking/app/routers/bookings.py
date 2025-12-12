@@ -510,12 +510,23 @@ def cancel_booking(
     publisher = getattr(request.app.state, "event_publisher", None)
 
     # Cancel the booking using crud function
+    # Obter cache para invalidação
+    cache = getattr(request.app.state, "redis_cache", None)
+    if cache is None:
+        config = getattr(request.app.state, "config", None)
+        if config and hasattr(config, "redis"):
+            from shared.cache import create_redis_cache
+            cache = create_redis_cache(config.redis.url)
+            if cache:
+                setattr(request.app.state, "redis_cache", cache)
+    
     booking = crud.cancel_booking(
         db=db,
         booking=booking,
         reason=cancel_payload.reason,
         cancelled_by=current_token.sub,
         publisher=publisher,
+        cache=cache,
     )
 
     return booking

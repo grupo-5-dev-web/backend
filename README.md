@@ -399,6 +399,93 @@ curl http://localhost:8000/users/ \
 3. **Seja específico**: Liste apenas domínios que realmente precisam acessar a API
 4. **Evite wildcards**: Não use padrões como `*.example.com` - liste domínios explicitamente
 
+### Cache Redis
+
+O sistema utiliza Redis para cachear dados frequentemente acessados, melhorando performance e reduzindo carga nos serviços.
+
+#### Dados Cacheados
+
+**OrganizationSettings**:
+- Configurações de tenant (timezone, horários, intervalos)
+- Cacheado por tenant_id
+- TTL configurável via `CACHE_TTL_SETTINGS` (padrão: 300 segundos)
+
+**Disponibilidade de Recursos**:
+- Slots disponíveis de um recurso para uma data específica
+- Cacheado por resource_id e data
+- TTL configurável via `CACHE_TTL_AVAILABILITY` (padrão: 300 segundos)
+
+#### Configuração
+
+Variáveis de ambiente:
+
+| Variável | Descrição | Padrão |
+|----------|-----------|--------|
+| `CACHE_TTL_SETTINGS` | TTL para cache de settings (segundos) | `300` |
+| `CACHE_TTL_AVAILABILITY` | TTL para cache de disponibilidade (segundos) | `300` |
+
+#### Funcionamento
+
+**Cache de Settings**:
+1. Primeira requisição busca settings via HTTP do tenant service
+2. Settings são armazenados no Redis com TTL configurado
+3. Requisições subsequentes retornam do cache (muito mais rápido)
+4. Cache é invalidado automaticamente quando settings são atualizados
+
+**Cache de Disponibilidade**:
+1. Primeira consulta calcula disponibilidade (consulta bookings, valida horários)
+2. Resultado é armazenado no Redis com TTL configurado
+3. Consultas subsequentes retornam do cache
+4. Cache é invalidado quando bookings são criados/cancelados
+
+#### Invalidação Automática
+
+O sistema invalida cache automaticamente quando:
+
+- **Settings atualizados**: Cache de settings do tenant é invalidado
+- **Booking criado**: Cache de disponibilidade da data do booking é invalidado
+- **Booking cancelado**: Cache de disponibilidade da data do booking é invalidado
+- **Booking atualizado (horário)**: Cache de disponibilidade é invalidado
+
+#### Graceful Degradation
+
+Se Redis não estiver disponível:
+- Sistema continua funcionando normalmente
+- Cache simplesmente não é usado (cache miss sempre)
+- Performance pode ser menor, mas funcionalidade não é afetada
+
+#### Chaves de Cache
+
+Formato das chaves no Redis:
+
+- Settings: `settings:tenant:{tenant_id}`
+- Disponibilidade: `availability:resource:{resource_id}:{YYYY-MM-DD}`
+
+#### Monitoramento
+
+```bash
+# Ver chaves de cache
+docker exec redis redis-cli KEYS "settings:*"
+docker exec redis redis-cli KEYS "availability:*"
+
+# Ver TTL de uma chave
+docker exec redis redis-cli TTL "settings:tenant:550e8400-e29b-41d4-a716-446655440000"
+
+# Limpar todo cache de settings
+docker exec redis redis-cli DEL $(docker exec redis redis-cli KEYS "settings:*")
+
+# Limpar cache de disponibilidade de um recurso
+docker exec redis redis-cli DEL $(docker exec redis redis-cli KEYS "availability:resource:{resource_id}:*")
+```
+
+#### Otimização
+
+Para melhor performance:
+
+- **Settings**: TTL maior (ex: 600-1800 segundos) - settings mudam raramente
+- **Disponibilidade**: TTL menor (ex: 60-300 segundos) - disponibilidade muda com bookings
+- **Produção**: Monitorar hit rate do cache e ajustar TTL conforme necessário
+
 ### Reservas Recorrentes
 
 O sistema suporta criação de reservas recorrentes com padrões diários, semanais ou mensais.
@@ -766,7 +853,7 @@ O pipeline de CI executa automaticamente as seguintes etapas em cada Pull Reques
 - [ ] **Audit trail**: Criar consumer dedicado para persistir histórico completo de eventos em banco separado.
 - [ ] **Webhooks para tenants**: Permitir configuração de URLs para receber eventos via HTTP POST.
 - [ ] **Autenticação centralizada**: Adicionar serviço de auth com JWT (access + refresh tokens), scopes por tenant e middleware de validação.
-- [ ] **Cache Redis**: Cachear `OrganizationSettings` e disponibilidade de recursos com TTL configurável.
+- [x] **Cache Redis**: Cachear `OrganizationSettings` e disponibilidade de recursos com TTL configurável. ✅ Implementado com invalidação automática.
 - [x] **Recurring bookings**: Implementar lógica de recorrência usando `recurring_pattern` (diário, semanal, mensal). ✅ Implementado com validação de conflitos e criação automática de ocorrências.
 - [ ] **Relatórios e analytics**: Endpoints de estatísticas (taxa de ocupação, bookings por categoria, cancelamentos) respeitando políticas do tenant.
 - [ ] **Soft delete aprimorado**: Unificar estratégia de exclusão lógica (usar `deleted_at` timestamp em vez de múltiplos `is_active`).

@@ -125,6 +125,12 @@ app.state.event_publisher = _EVENT_PUBLISHER
 # carrega URL do serviço tenants no docker-compose
 app.state.tenant_service_url = os.getenv("TENANT_SERVICE_URL")
 
+# Initialize Redis cache if available
+from shared.cache import create_redis_cache
+cache = create_redis_cache(_CONFIG.redis.url)
+if cache:
+    app.state.redis_cache = cache
+
 # Configure CORS
 configure_cors(app)
 

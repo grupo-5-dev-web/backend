@@ -10,6 +10,16 @@ from .recurring import (
     get_next_occurrence,
     validate_recurring_pattern,
 )
+from .cache import (
+    create_redis_cache,
+    get_cached_settings,
+    set_cached_settings,
+    invalidate_settings_cache,
+    get_cached_availability,
+    set_cached_availability,
+    invalidate_availability_cache,
+    get_cache_ttl,
+)
 from .organization import (
     OrganizationSettings,
     SettingsProvider,
@@ -37,6 +47,14 @@ __all__ = [
     "calculate_recurring_occurrences",
     "get_next_occurrence",
     "validate_recurring_pattern",
+    "create_redis_cache",
+    "get_cached_settings",
+    "set_cached_settings",
+    "invalidate_settings_cache",
+    "get_cached_availability",
+    "set_cached_availability",
+    "invalidate_availability_cache",
+    "get_cache_ttl",
     "OrganizationSettings",
     "SettingsProvider",
     "default_settings_provider",

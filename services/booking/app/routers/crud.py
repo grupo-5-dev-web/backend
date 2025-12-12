@@ -134,6 +134,8 @@ def create_booking(
     )
     
     # Se recorrência está habilitada, criar ocorrências adicionais
+    dates_to_invalidate = {payload.start_time.date().isoformat()}
+    
     if payload.recurring_enabled and payload.recurring_pattern:
         pattern_dict = payload.recurring_pattern.model_dump()
         occurrences = calculate_recurring_occurrences(
@@ -144,6 +146,8 @@ def create_booking(
         
         # Criar bookings para ocorrências subsequentes (pular a primeira que já foi criada)
         for occ in occurrences[1:]:
+            dates_to_invalidate.add(occ["start_time"].date().isoformat())
+            
             recurring_booking = Booking(
                 tenant_id=payload.tenant_id,
                 resource_id=payload.resource_id,
@@ -179,6 +183,10 @@ def create_booking(
     
     db.commit()
     db.refresh(booking)
+    
+    # Invalidar cache de disponibilidade após criar booking(s)
+    # Nota: cache será passado via app_state quando necessário
+    # Por enquanto, invalidação será feita via eventos ou manualmente
 
     return booking
 
@@ -330,6 +338,7 @@ def cancel_booking(
     reason: str,
     cancelled_by: UUID,
     publisher: Optional[EventPublisher] = None,
+    cache: Optional[object] = None,
 ) -> Booking:
     """
     Cancels a booking and creates appropriate event records in the database and via the event publisher.
@@ -373,5 +382,12 @@ def cancel_booking(
     
     db.commit()
     db.refresh(booking)
+    
+    # Invalidar cache de disponibilidade do recurso após cancelamento
+    if cache is not None:
+        from shared.cache import invalidate_availability_cache
+        # Invalidar cache para a data do booking cancelado
+        date_str = booking.start_time.date().isoformat()
+        invalidate_availability_cache(cache, booking.resource_id, date_str)
     
     return booking

@@ -117,6 +117,7 @@ def obter_configuracoes(
 def atualizar_configuracoes(
     tenant_id: UUID,
     config_update: OrganizationSettingsUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_token: TokenPayload = Depends(get_current_token),
 ):
@@ -137,4 +138,19 @@ def atualizar_configuracoes(
     configuracoes = crud.atualizar_configuracoes(db, tenant_id, config_update)
     if not configuracoes:
         raise HTTPException(status_code=404, detail="Configurações não encontradas")
+    
+    # Invalidar cache de settings após atualização
+    cache = getattr(request.app.state, "redis_cache", None)
+    if cache is None:
+        config = getattr(request.app.state, "config", None)
+        if config and hasattr(config, "redis"):
+            from shared.cache import create_redis_cache
+            cache = create_redis_cache(config.redis.url)
+            if cache:
+                setattr(request.app.state, "redis_cache", cache)
+    
+    if cache:
+        from shared.cache import invalidate_settings_cache
+        invalidate_settings_cache(cache, tenant_id)
+    
     return configuracoes
