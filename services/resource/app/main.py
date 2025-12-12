@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import Base, engine
 from app.routers import categories, resources
-from shared import default_settings_provider, load_service_config, EventConsumer, cleanup_consumer, EventPublisher
+from shared import default_settings_provider, load_service_config, EventConsumer, cleanup_consumer, EventPublisher, get_cors_origins
 from app.consumers import (
     handle_booking_created,
     handle_booking_cancelled,
@@ -119,28 +119,20 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_cors_origins(),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.state.config = _CONFIG
 app.state.settings_provider = default_settings_provider
 app.state.event_publisher = _EVENT_PUBLISHER
 # carrega URL do serviço tenants no docker-compose
 app.state.tenant_service_url = os.getenv("TENANT_SERVICE_URL")
-
-# Configure CORS (after app.state setup)
-raw_origins = os.getenv("CORS_ORIGINS", "")
-
-if raw_origins:
-    origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
-else:
-    # fallback dev
-    origins = ["http://localhost:3000"]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 def custom_openapi_schema():

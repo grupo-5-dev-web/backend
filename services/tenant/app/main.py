@@ -1,4 +1,5 @@
 # app/main.py
+import logging
 import os
 from html import escape
 
@@ -9,7 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import Base, engine
 from app.models import tenant as tenant_models
 from app.routers import endpoints as tenants
-from shared import database_lifespan_factory, load_service_config, EventPublisher
+from shared import database_lifespan_factory, load_service_config, EventPublisher, get_cors_origins
+
+logger = logging.getLogger(__name__)
 
 tags_metadata = [
     {
@@ -48,17 +51,10 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-raw_origins = os.getenv("CORS_ORIGINS", "")
-
-if raw_origins:
-    origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
-else:
-    # fallback dev 
-    origins = ["http://localhost:3000"]
-
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
