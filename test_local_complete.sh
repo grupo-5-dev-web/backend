@@ -635,7 +635,7 @@ response=$(curl -s -X POST "$USER_URL/login" -H "Content-Type: application/x-www
 test_admin_token=$(echo "$response" | jq -r '.access_token')
 
 cat_data='{"tenant_id": "'$DELETE_TENANT_ID'", "name": "Test Category", "type": "fisico"}'
-response=$(curl -s -X POST "$CATEGORY_URL/" -H "Content-Type: application/json" -d "$cat_data")
+response=$(curl -s -X POST "$CATEGORY_URL/" -H "Content-Type: application/json" -H "Authorization: Bearer $test_admin_token" -d "$cat_data")
 test_cat_id=$(echo "$response" | jq -r '.id')
 
 res_data='{"tenant_id": "'$DELETE_TENANT_ID'", "category_id": "'$test_cat_id'", "name": "Test Resource", "status": "disponivel", "availability_schedule": {"monday": ["08:00-18:00"]}}'
@@ -673,13 +673,13 @@ sleep 5
 echo "Verificando se recursos foram deletados em cascata:"
 echo "(Note: Token do tenant deletado não funciona mais, usando token do admin principal)"
 
-echo "➤ Verificar Usuário Deletado (404 esperado)"
-status_code=$(curl -s -L -o /dev/null -w "%{http_code}" "$USER_URL/$test_user_id" \
+echo "➤ Verificar Admin Deletado (404 esperado)"
+status_code=$(curl -s -L -o /dev/null -w "%{http_code}" "$USER_URL/$test_admin_id" \
     -H "Authorization: Bearer $ADMIN_TOKEN")
 if [ "$status_code" -eq 404 ]; then
-    echo -e "${GREEN}✓ SUCESSO: Usuário foi deletado (404)${NC}"
+    echo -e "${GREEN}✓ SUCESSO: Admin foi deletado (404)${NC}"
 else
-    echo -e "${RED}❌ FALHOU: Usuário ainda existe (status: $status_code)${NC}"
+    echo -e "${RED}❌ FALHOU: Admin ainda existe (status: $status_code)${NC}"
 fi
 
 echo "➤ Verificar Recurso Deletado (404 esperado)"
@@ -692,7 +692,8 @@ else
 fi
 
 echo "➤ Verificar Categoria Deletada (404 esperado)"
-status_code=$(curl -s -L -o /dev/null -w "%{http_code}" "$CATEGORY_URL/$test_cat_id")
+status_code=$(curl -s -L -o /dev/null -w "%{http_code}" "$CATEGORY_URL/$test_cat_id" \
+    -H "Authorization: Bearer $ADMIN_TOKEN")
 if [ "$status_code" -eq 404 ]; then
     echo -e "${GREEN}✓ SUCESSO: Categoria foi deletada (404)${NC}"
 else

@@ -1,6 +1,6 @@
 from uuid import UUID
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.auth_dependencies import get_current_token, TokenPayload
@@ -64,6 +64,7 @@ def atualizar_tenant(
 @router.delete("/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)
 def deletar_tenant(
     tenant_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_token: TokenPayload = Depends(get_current_token),
 ):
@@ -80,6 +81,11 @@ def deletar_tenant(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Você não tem permissão para deletar este tenant",
         )
+
+    # Publicar evento de deleção de tenant ANTES de deletar
+    publisher = request.app.state.event_publisher
+    if publisher:
+        publisher.publish("tenant.deleted", {"tenant_id": str(tenant_id)})
 
     tenant = crud.deletar_tenant(db, tenant_id)
     if not tenant:
