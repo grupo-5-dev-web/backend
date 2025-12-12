@@ -128,6 +128,25 @@ curl -X POST http://localhost:8000/bookings/ -H "Content-Type: application/json"
 }'
 # Resposta: {"id": "b6a2c6bc-5809-47ad-9aa7-6cf2adc35f42", "status": "pendente", ...}
 
+# 5.1. Criar reserva recorrente (semanal, todas as quartas-feiras até fim do mês)
+curl -X POST http://localhost:8000/bookings/ -H "Content-Type: application/json" -d '{
+  "tenant_id": "d49eccff-6586-44cc-b723-719f78a6f9f9",
+  "resource_id": "d4a90dee-9261-44df-a362-e6c12db591e2",
+  "user_id": "6a899ad5-12bb-43ee-90ac-4d6f5091f6ae",
+  "client_id": "6a899ad5-12bb-43ee-90ac-4d6f5091f6ae",
+  "start_time": "2025-12-10T14:00:00Z",
+  "end_time": "2025-12-10T15:00:00Z",
+  "notes": "Reunião semanal de equipe",
+  "recurring_enabled": true,
+  "recurring_pattern": {
+    "frequency": "weekly",
+    "interval": 1,
+    "end_date": "2025-12-31T23:59:59Z",
+    "days_of_week": [2]
+  }
+}'
+# Resposta: Cria múltiplas reservas automaticamente (uma para cada quarta-feira até 31/12)
+
 # 6. Tentar criar reserva com conflito (retorna 409)
 curl -X POST http://localhost:8000/bookings/ -H "Content-Type: application/json" -d '{
   "tenant_id": "d49eccff-6586-44cc-b723-719f78a6f9f9",
@@ -379,6 +398,93 @@ curl http://localhost:8000/users/ \
 2. **Use HTTPS**: Sempre use `https://` nos domínios permitidos
 3. **Seja específico**: Liste apenas domínios que realmente precisam acessar a API
 4. **Evite wildcards**: Não use padrões como `*.example.com` - liste domínios explicitamente
+
+### Reservas Recorrentes
+
+O sistema suporta criação de reservas recorrentes com padrões diários, semanais ou mensais.
+
+#### Tipos de Recorrência
+
+**Diária (`daily`)**:
+- Cria reservas em intervalos de dias
+- Exemplo: todos os dias, a cada 2 dias, etc.
+
+**Semanal (`weekly`)**:
+- Cria reservas em intervalos de semanas
+- Opcionalmente pode especificar dias da semana (0=Segunda, 6=Domingo)
+- Exemplo: toda segunda-feira, ou segunda/quarta/sexta
+
+**Mensal (`monthly`)**:
+- Cria reservas em intervalos de meses
+- Mantém o mesmo dia do mês
+- Exemplo: todo dia 15 de cada mês
+
+#### Estrutura do Padrão de Recorrência
+
+```json
+{
+  "frequency": "weekly",
+  "interval": 1,
+  "end_date": "2025-12-31T23:59:59Z",
+  "days_of_week": [0, 2, 4]
+}
+```
+
+- `frequency`: `"daily"`, `"weekly"` ou `"monthly"` (obrigatório)
+- `interval`: Intervalo entre ocorrências (1-52, padrão: 1)
+- `end_date`: Data final da recorrência (opcional, se não fornecido cria até 365 ocorrências)
+- `days_of_week`: Lista de dias da semana para recorrência semanal (0-6, opcional)
+
+#### Exemplos de Uso
+
+**Reserva diária por 30 dias**:
+```json
+{
+  "recurring_enabled": true,
+  "recurring_pattern": {
+    "frequency": "daily",
+    "interval": 1,
+    "end_date": "2025-12-31T23:59:59Z"
+  }
+}
+```
+
+**Reunião semanal (segunda, quarta, sexta)**:
+```json
+{
+  "recurring_enabled": true,
+  "recurring_pattern": {
+    "frequency": "weekly",
+    "interval": 1,
+    "end_date": "2025-12-31T23:59:59Z",
+    "days_of_week": [0, 2, 4]
+  }
+}
+```
+
+**Reserva mensal (todo dia 15)**:
+```json
+{
+  "recurring_enabled": true,
+  "recurring_pattern": {
+    "frequency": "monthly",
+    "interval": 1,
+    "end_date": "2025-12-31T23:59:59Z"
+  }
+}
+```
+
+#### Validações
+
+- ✅ Valida conflitos para **todas** as ocorrências antes de criar qualquer reserva
+- ✅ Se houver conflito em qualquer ocorrência, nenhuma reserva é criada (transação atômica)
+- ✅ Valida disponibilidade do recurso para cada ocorrência
+- ✅ Respeita horário comercial e regras de antecedência do tenant
+- ✅ Limite máximo de 365 ocorrências quando `end_date` não é fornecido
+
+#### Eventos
+
+Cada ocorrência recorrente gera um evento `booking.created` separado, permitindo que outros serviços reajam individualmente a cada reserva criada.
 
 ### Health Checks e Monitoramento
 
@@ -661,7 +767,7 @@ O pipeline de CI executa automaticamente as seguintes etapas em cada Pull Reques
 - [ ] **Webhooks para tenants**: Permitir configuração de URLs para receber eventos via HTTP POST.
 - [ ] **Autenticação centralizada**: Adicionar serviço de auth com JWT (access + refresh tokens), scopes por tenant e middleware de validação.
 - [ ] **Cache Redis**: Cachear `OrganizationSettings` e disponibilidade de recursos com TTL configurável.
-- [ ] **Recurring bookings**: Implementar lógica de recorrência usando `recurring_pattern` (diário, semanal, mensal).
+- [x] **Recurring bookings**: Implementar lógica de recorrência usando `recurring_pattern` (diário, semanal, mensal). ✅ Implementado com validação de conflitos e criação automática de ocorrências.
 - [ ] **Relatórios e analytics**: Endpoints de estatísticas (taxa de ocupação, bookings por categoria, cancelamentos) respeitando políticas do tenant.
 - [ ] **Soft delete aprimorado**: Unificar estratégia de exclusão lógica (usar `deleted_at` timestamp em vez de múltiplos `is_active`).
 - [x] **Correção do availability_schedule**: Bug corrigido no booking service - formato do schedule era `{"monday": [...]}` mas o código procurava por `{"schedule": [...]}`. Agora bookings podem ser criadas corretamente respeitando a disponibilidade dos recursos.

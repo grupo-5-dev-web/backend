@@ -5,7 +5,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 from app.models.booking import Booking, BookingEvent, BookingStatus
 from app.schemas.booking_schema import BookingCreate, BookingUpdate
-from shared import EventPublisher
+from shared import EventPublisher, calculate_recurring_occurrences
 
 
 def _conflict_query(
@@ -97,6 +97,8 @@ def create_booking(
     payload: BookingCreate,
     publisher: Optional[EventPublisher] = None,
 ) -> Booking:
+    """Cria uma reserva, incluindo ocorrências recorrentes se aplicável."""
+    # Criar primeira reserva
     booking = Booking(
         tenant_id=payload.tenant_id,
         resource_id=payload.resource_id,
@@ -113,7 +115,7 @@ def create_booking(
     db.flush()
 
     # Create event payload
-    payload = {
+    event_payload = {
         "booking_id": str(booking.id),
         "resource_id": str(booking.resource_id),
         "user_id": str(booking.user_id),
@@ -127,9 +129,53 @@ def create_booking(
         db,
         booking,
         "booking.created",
-        payload,
+        event_payload,
         publisher,
     )
+    
+    # Se recorrência está habilitada, criar ocorrências adicionais
+    if payload.recurring_enabled and payload.recurring_pattern:
+        pattern_dict = payload.recurring_pattern.model_dump()
+        occurrences = calculate_recurring_occurrences(
+            payload.start_time,
+            payload.end_time,
+            pattern_dict,
+        )
+        
+        # Criar bookings para ocorrências subsequentes (pular a primeira que já foi criada)
+        for occ in occurrences[1:]:
+            recurring_booking = Booking(
+                tenant_id=payload.tenant_id,
+                resource_id=payload.resource_id,
+                user_id=payload.user_id,
+                client_id=payload.client_id,
+                start_time=occ["start_time"],
+                end_time=occ["end_time"],
+                status=payload.status or BookingStatus.CONFIRMED,
+                notes=payload.notes,
+                recurring_enabled=True,
+                recurring_pattern=pattern_dict,
+            )
+            db.add(recurring_booking)
+            db.flush()
+            
+            # Criar evento para cada booking recorrente
+            recurring_event_payload = {
+                "booking_id": str(recurring_booking.id),
+                "resource_id": str(recurring_booking.resource_id),
+                "user_id": str(recurring_booking.user_id),
+                "status": recurring_booking.status,
+                "start_time": recurring_booking.start_time.isoformat(),
+                "end_time": recurring_booking.end_time.isoformat(),
+            }
+            
+            _create_and_publish_event(
+                db,
+                recurring_booking,
+                "booking.created",
+                recurring_event_payload,
+                publisher,
+            )
     
     db.commit()
     db.refresh(booking)

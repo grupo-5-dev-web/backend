@@ -177,32 +177,83 @@ async def create_booking(
     start_utc = start_local.astimezone(timezone.utc)
     end_utc = end_local.astimezone(timezone.utc)
 
-    conflicts = crud.find_conflicts(
-        db,
-        payload.tenant_id,
-        payload.resource_id,
-        start_utc,
-        end_utc,
-    )
+    # Se recorrência está habilitada, validar conflitos para todas as ocorrências
+    if payload.recurring_enabled and payload.recurring_pattern:
+        from shared import calculate_recurring_occurrences
+        
+        pattern_dict = payload.recurring_pattern.model_dump()
+        occurrences = calculate_recurring_occurrences(
+            start_utc,
+            end_utc,
+            pattern_dict,
+        )
+        
+        # Verificar conflitos para cada ocorrência
+        all_conflicts = []
+        for occ in occurrences:
+            occ_conflicts = crud.find_conflicts(
+                db,
+                payload.tenant_id,
+                payload.resource_id,
+                occ["start_time"],
+                occ["end_time"],
+            )
+            all_conflicts.extend(occ_conflicts)
+        
+        if all_conflicts:
+            # Remover duplicatas por booking_id
+            seen_ids = set()
+            unique_conflicts = []
+            for b in all_conflicts:
+                if b.id not in seen_ids:
+                    seen_ids.add(b.id)
+                    unique_conflicts.append(b)
+            
+            conflict_payload = BookingConflictResponse(
+                success=False,
+                error="conflict",
+                message="Recurso já possui reserva em um ou mais intervalos da recorrência",
+                conflicts=[
+                    BookingConflict(
+                        booking_id=b.id,
+                        start_time=b.start_time,
+                        end_time=b.end_time,
+                    )
+                    for b in unique_conflicts
+                ],
+            )
+            return JSONResponse(
+                status_code=409,
+                content=conflict_payload.model_dump(mode="json"),
+            )
+    else:
+        # Validação de conflito para booking único
+        conflicts = crud.find_conflicts(
+            db,
+            payload.tenant_id,
+            payload.resource_id,
+            start_utc,
+            end_utc,
+        )
 
-    if conflicts:
-        conflict_payload = BookingConflictResponse(
-            success=False,
-            error="conflict",
-            message="Recurso já possui reserva neste intervalo",
-            conflicts=[
-                BookingConflict(
-                    booking_id=b.id,
-                    start_time=b.start_time,
-                    end_time=b.end_time,
-                )
-                for b in conflicts
-            ],
-        )
-        return JSONResponse(
-            status_code=409,
-            content=conflict_payload.model_dump(mode="json"),
-        )
+        if conflicts:
+            conflict_payload = BookingConflictResponse(
+                success=False,
+                error="conflict",
+                message="Recurso já possui reserva neste intervalo",
+                conflicts=[
+                    BookingConflict(
+                        booking_id=b.id,
+                        start_time=b.start_time,
+                        end_time=b.end_time,
+                    )
+                    for b in conflicts
+                ],
+            )
+            return JSONResponse(
+                status_code=409,
+                content=conflict_payload.model_dump(mode="json"),
+            )
 
     # salvar em UTC
     payload.start_time = start_utc

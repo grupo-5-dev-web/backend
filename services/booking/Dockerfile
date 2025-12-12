@@ -13,7 +13,7 @@ COPY services/booking/app /srv/booking/app
 COPY services/booking/alembic.ini /srv/booking/alembic.ini
 COPY services/booking/alembic /srv/booking/alembic
 
-RUN pip install --no-cache-dir fastapi uvicorn psycopg2-binary sqlalchemy redis python-dotenv email-validator alembic httpx python-jose[cryptography] python-multipart
+RUN pip install --no-cache-dir fastapi uvicorn psycopg2-binary sqlalchemy redis python-dotenv email-validator alembic httpx python-jose[cryptography] python-multipart python-dateutil
 
 ENV PYTHONPATH="/srv:/srv/booking"
 

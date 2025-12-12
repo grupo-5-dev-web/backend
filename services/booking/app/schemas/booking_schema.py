@@ -33,6 +33,15 @@ class BookingBase(BaseModel):
     notes: Optional[str] = Field(default=None, description="Observações sobre a reserva", examples=["Reunião de planejamento trimestral"])
     recurring_enabled: bool = Field(default=False, description="Se true, cria reservas recorrentes", examples=[False])
     recurring_pattern: Optional[RecurringPattern] = Field(default=None, description="Padrão de recorrência (obrigatório se recurring_enabled=true)")
+    
+    @field_validator("recurring_pattern")
+    @classmethod
+    def validate_recurring_pattern(cls, value, info):
+        """Valida que recurring_pattern está presente se recurring_enabled é True."""
+        recurring_enabled = info.data.get("recurring_enabled", False)
+        if recurring_enabled and value is None:
+            raise ValueError("recurring_pattern é obrigatório quando recurring_enabled é True")
+        return value
 
     @field_validator("start_time", "end_time")
     @classmethod

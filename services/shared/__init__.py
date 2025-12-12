@@ -5,6 +5,11 @@ from .messaging import EventPublisher
 from .event_consumer import EventConsumer, cleanup_consumer
 from .health import create_health_router, check_database_health, check_redis_health
 from .cors import configure_cors, get_cors_origins
+from .recurring import (
+    calculate_recurring_occurrences,
+    get_next_occurrence,
+    validate_recurring_pattern,
+)
 from .organization import (
     OrganizationSettings,
     SettingsProvider,
@@ -29,6 +34,9 @@ __all__ = [
     "check_redis_health",
     "configure_cors",
     "get_cors_origins",
+    "calculate_recurring_occurrences",
+    "get_next_occurrence",
+    "validate_recurring_pattern",
     "OrganizationSettings",
     "SettingsProvider",
     "default_settings_provider",
