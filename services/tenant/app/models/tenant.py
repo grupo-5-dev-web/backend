@@ -21,6 +21,7 @@ class Tenant(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     settings = relationship("OrganizationSettings", back_populates="tenant", cascade="all, delete-orphan", uselist=False)
+    webhooks = relationship("Webhook", back_populates="tenant", cascade="all, delete-orphan")
 
 
 class OrganizationSettings(Base):

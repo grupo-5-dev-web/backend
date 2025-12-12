@@ -1,10 +1,15 @@
 from uuid import UUID
 from sqlalchemy.orm import Session
 from app.models.tenant import Tenant, OrganizationSettings
+from app.models.webhook import Webhook
 from app.schemas.tenant_schema import (
     TenantCreate,
     TenantUpdate,
     OrganizationSettingsUpdate,
+)
+from app.schemas.webhook_schema import (
+    WebhookCreate,
+    WebhookUpdate,
 )
 
 def criar_tenant(db: Session, tenant_data: TenantCreate) -> Tenant:
@@ -106,3 +111,85 @@ def atualizar_configuracoes(
     db.commit()
     db.refresh(configuracoes)
     return configuracoes
+
+
+def criar_webhook(db: Session, tenant_id: UUID, webhook_data: WebhookCreate) -> Webhook:
+    """Cria um novo webhook para o tenant."""
+    webhook = Webhook(
+        tenant_id=tenant_id,
+        url=webhook_data.url,
+        events=webhook_data.events,
+        secret=webhook_data.secret,
+        is_active=webhook_data.is_active,
+    )
+    db.add(webhook)
+    db.commit()
+    db.refresh(webhook)
+    return webhook
+
+
+def listar_webhooks(db: Session, tenant_id: UUID) -> list[Webhook]:
+    """Lista todos os webhooks ativos do tenant."""
+    return (
+        db.query(Webhook)
+        .filter(Webhook.tenant_id == tenant_id)
+        .filter(Webhook.is_active == True)
+        .all()
+    )
+
+
+def buscar_webhook(db: Session, tenant_id: UUID, webhook_id: UUID) -> Webhook | None:
+    """Busca um webhook específico."""
+    return (
+        db.query(Webhook)
+        .filter(Webhook.id == webhook_id)
+        .filter(Webhook.tenant_id == tenant_id)
+        .first()
+    )
+
+
+def atualizar_webhook(
+    db: Session,
+    tenant_id: UUID,
+    webhook_id: UUID,
+    webhook_update: WebhookUpdate,
+) -> Webhook | None:
+    """Atualiza um webhook existente."""
+    webhook = buscar_webhook(db, tenant_id, webhook_id)
+    if not webhook:
+        return None
+    
+    update_data = webhook_update.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(webhook, field, value)
+    
+    db.commit()
+    db.refresh(webhook)
+    return webhook
+
+
+def deletar_webhook(db: Session, tenant_id: UUID, webhook_id: UUID) -> Webhook | None:
+    """Deleta um webhook."""
+    webhook = buscar_webhook(db, tenant_id, webhook_id)
+    if not webhook:
+        return None
+    
+    db.delete(webhook)
+    db.commit()
+    return webhook
+
+
+def obter_webhooks_ativos_por_evento(
+    db: Session,
+    tenant_id: UUID,
+    event_type: str,
+) -> list[Webhook]:
+    """Obtém todos os webhooks ativos do tenant que escutam um evento específico."""
+    from sqlalchemy.dialects.postgresql import array
+    return (
+        db.query(Webhook)
+        .filter(Webhook.tenant_id == tenant_id)
+        .filter(Webhook.is_active == True)
+        .filter(Webhook.events.contains([event_type]))
+        .all()
+    )

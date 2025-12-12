@@ -1,5 +1,8 @@
 # app/main.py
 import os
+import asyncio
+import logging
+from contextlib import asynccontextmanager
 from html import escape
 
 from fastapi import FastAPI
@@ -8,8 +11,29 @@ from fastapi.responses import HTMLResponse
 
 from app.core.database import Base, engine
 from app.models import tenant as tenant_models
-from app.routers import endpoints as tenants
-from shared import database_lifespan_factory, load_service_config, EventPublisher, create_health_router, configure_cors
+from app.routers import endpoints as tenants, webhooks
+from shared import (
+    database_lifespan_factory,
+    load_service_config,
+    EventPublisher,
+    EventConsumer,
+    cleanup_consumer,
+    create_health_router,
+    configure_cors,
+)
+from app.consumers.booking_consumer import (
+    handle_booking_created,
+    handle_booking_cancelled,
+    handle_booking_updated,
+)
+
+# Configure logging
+if not logging.root.handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+logger = logging.getLogger(__name__)
 
 tags_metadata = [
     {
@@ -30,12 +54,51 @@ _EVENT_PUBLISHER = (
 
 IS_TEST = os.getenv("PYTEST_CURRENT_TEST") is not None
 
-lifespan = database_lifespan_factory(
-    service_name="Tenant Service",
-    metadata=Base.metadata,
-    engine=engine,
-    models=(tenant_models.Tenant, tenant_models.OrganizationSettings),
-)
+# Consumer instances
+_booking_consumer: EventConsumer | None = None
+_booking_consumer_task: asyncio.Task | None = None
+
+
+@asynccontextmanager
+async def app_lifespan(app: FastAPI):
+    """Combined lifespan with database and event consumers."""
+    global _booking_consumer, _booking_consumer_task
+    
+    # Database startup with retries
+    logger.info("Starting Tenant Service...")
+    for attempt in range(10):
+        try:
+            await asyncio.to_thread(Base.metadata.create_all, bind=engine)
+            break
+        except Exception as e:
+            if attempt < 9:
+                logger.warning(f"Database unavailable, retrying... attempt {attempt + 1}: {e}")
+                await asyncio.sleep(2.0)
+            else:
+                logger.error("Database unavailable after 10 attempts, giving up.")
+                raise
+    
+    # Start event consumer for booking events (webhooks)
+    if _CONFIG.redis.url:
+        _booking_consumer = EventConsumer(
+            redis_url=_CONFIG.redis.url,
+            stream_name="booking-events",
+            group_name="tenant-service",
+            consumer_name="tenant-webhook-worker-1",
+        )
+        _booking_consumer.register_handler("booking.created", handle_booking_created)
+        _booking_consumer.register_handler("booking.cancelled", handle_booking_cancelled)
+        _booking_consumer.register_handler("booking.updated", handle_booking_updated)
+        _booking_consumer_task = asyncio.create_task(_booking_consumer.start())
+        logger.info("Booking event consumer (webhooks) started")
+    
+    yield
+    
+    # Cleanup consumer
+    await cleanup_consumer(_booking_consumer, _booking_consumer_task, logger)
+    logger.info("Tenant Service stopped")
+
+lifespan = app_lifespan
 
 app = FastAPI(
     title="Tenant Service",
@@ -116,6 +179,7 @@ app.include_router(health_router)
 
 # add as rotas definidas em endpoints.py aqui, pq aí as urls funcionam
 app.include_router(tenants.router, prefix="/tenants")
+app.include_router(webhooks.router)
 
 @app.get("/")
 def root():

@@ -573,6 +573,127 @@ O sistema suporta criação de reservas recorrentes com padrões diários, seman
 
 Cada ocorrência recorrente gera um evento `booking.created` separado, permitindo que outros serviços reajam individualmente a cada reserva criada.
 
+### Webhooks Configuráveis
+
+O sistema permite que tenants registrem URLs de webhook para receber notificações de eventos de booking em tempo real.
+
+#### Eventos Suportados
+
+Os seguintes eventos podem ser configurados para webhooks:
+
+- `booking.created`: Quando uma reserva é criada
+- `booking.cancelled`: Quando uma reserva é cancelada
+- `booking.updated`: Quando uma reserva é atualizada
+- `booking.status_changed`: Quando o status de uma reserva muda
+
+#### Configuração de Webhooks
+
+**Criar Webhook**:
+```bash
+curl -X POST http://localhost:8000/tenants/{tenant_id}/webhooks \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {token}" \
+  -d '{
+    "url": "https://example.com/webhook",
+    "events": ["booking.created", "booking.cancelled"],
+    "secret": "meu-secret-opcional",
+    "is_active": true
+  }'
+```
+
+**Listar Webhooks**:
+```bash
+curl -X GET http://localhost:8000/tenants/{tenant_id}/webhooks \
+  -H "Authorization: Bearer {token}"
+```
+
+**Atualizar Webhook**:
+```bash
+curl -X PUT http://localhost:8000/tenants/{tenant_id}/webhooks/{webhook_id} \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {token}" \
+  -d '{
+    "is_active": false
+  }'
+```
+
+**Deletar Webhook**:
+```bash
+curl -X DELETE http://localhost:8000/tenants/{tenant_id}/webhooks/{webhook_id} \
+  -H "Authorization: Bearer {token}"
+```
+
+#### Validação de URL
+
+- **HTTPS**: Sempre permitido
+- **HTTP**: Apenas para `localhost` ou `127.0.0.1` (desenvolvimento)
+- Outros protocolos são rejeitados
+
+#### Formato do Payload
+
+Quando um evento ocorre, o sistema envia um POST para a URL configurada com o seguinte formato:
+
+```json
+{
+  "event": "booking.created",
+  "data": {
+    "booking_id": "550e8400-e29b-41d4-a716-446655440000",
+    "resource_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+    "user_id": "6ba7b811-9dad-11d1-80b4-00c04fd430c8",
+    "tenant_id": "6ba7b812-9dad-11d1-80b4-00c04fd430c8",
+    "status": "confirmed",
+    "start_time": "2025-11-10T10:00:00Z",
+    "end_time": "2025-11-10T11:00:00Z"
+  }
+}
+```
+
+#### Assinatura HMAC (Opcional)
+
+Se um `secret` for configurado, o sistema inclui um header `X-Webhook-Signature` com assinatura HMAC-SHA256:
+
+```
+X-Webhook-Signature: sha256={signature}
+```
+
+Para validar a assinatura no seu endpoint:
+
+```python
+import hmac
+import hashlib
+
+def verify_signature(payload: str, signature: str, secret: str) -> bool:
+    expected = hmac.new(
+        secret.encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(f"sha256={expected}", signature)
+```
+
+#### Comportamento
+
+- **Múltiplos Webhooks**: Um tenant pode configurar múltiplos webhooks para o mesmo evento
+- **Falhas Silenciosas**: Se um webhook falhar (timeout, erro HTTP), o sistema registra um log mas não interrompe o processamento
+- **Timeout**: Cada webhook tem timeout de 10 segundos
+- **Ativação/Desativação**: Webhooks podem ser ativados/desativados sem deletá-los
+
+#### Segurança
+
+- URLs são validadas antes de serem salvas
+- HTTP não-localhost é rejeitado em produção
+- Assinatura HMAC opcional para verificação de integridade
+- Webhooks são isolados por tenant (apenas eventos do próprio tenant são enviados)
+
+#### Monitoramento
+
+Logs de webhooks são registrados no tenant service:
+
+```bash
+# Ver logs de webhooks
+docker logs tenant-service | grep -i webhook
+```
+
 ### Health Checks e Monitoramento
 
 Todos os serviços expõem endpoints de health check para monitoramento Docker/Kubernetes:

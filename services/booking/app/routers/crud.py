@@ -119,6 +119,7 @@ def create_booking(
         "booking_id": str(booking.id),
         "resource_id": str(booking.resource_id),
         "user_id": str(booking.user_id),
+        "tenant_id": str(booking.tenant_id),  # Adicionado para webhooks
         "status": booking.status,
         "start_time": booking.start_time.isoformat(),
         "end_time": booking.end_time.isoformat(),
@@ -168,6 +169,7 @@ def create_booking(
                 "booking_id": str(recurring_booking.id),
                 "resource_id": str(recurring_booking.resource_id),
                 "user_id": str(recurring_booking.user_id),
+                "tenant_id": str(recurring_booking.tenant_id),  # Adicionado para webhooks
                 "status": recurring_booking.status,
                 "start_time": recurring_booking.start_time.isoformat(),
                 "end_time": recurring_booking.end_time.isoformat(),
@@ -244,6 +246,7 @@ def update_booking(
         "booking_id": str(booking.id),
         "resource_id": str(booking.resource_id),
         "user_id": str(booking.user_id),
+        "tenant_id": str(booking.tenant_id),  # Adicionado para webhooks
         "changed_fields": list(update_data.keys()),
     }
     
@@ -277,6 +280,7 @@ def delete_booking(
         "booking_id": str(booking.id),
         "resource_id": str(booking.resource_id),
         "user_id": str(booking.user_id),
+        "tenant_id": str(booking.tenant_id),  # Adicionado para webhooks
         "deleted_by": str(deleted_by),
         "start_time": booking.start_time.isoformat(),
         "end_time": booking.end_time.isoformat(),
@@ -314,6 +318,7 @@ def update_booking_status(
         "booking_id": str(booking.id),
         "resource_id": str(booking.resource_id),
         "user_id": str(booking.user_id),
+        "tenant_id": str(booking.tenant_id),  # Adicionado para webhooks
         "status": status,
     }
     
@@ -367,6 +372,7 @@ def cancel_booking(
         "booking_id": str(booking.id),
         "resource_id": str(booking.resource_id),
         "user_id": str(booking.user_id),
+        "tenant_id": str(booking.tenant_id),  # Adicionado para webhooks
         "cancelled_by": str(cancelled_by),
         "reason": reason,
     }
