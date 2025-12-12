@@ -10,7 +10,7 @@ from app.core.database import Base, engine
 from app.routers import bookings
 from app.services.organization import default_settings_provider
 from app.consumers import handle_resource_deleted, handle_user_deleted, handle_tenant_deleted
-from shared import EventPublisher, EventConsumer, cleanup_consumer, load_service_config
+from shared import EventPublisher, EventConsumer, cleanup_consumer, load_service_config, get_cors_origins
 import asyncio
 import logging
 
@@ -94,25 +94,10 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS configuration with smart defaults
-raw_origins = os.getenv("CORS_ORIGINS", "")
-
-if raw_origins:
-    # Explicit configuration provided
-    origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
-else:
-    # Fallback: allow all for dev/test, warn in production
-    is_dev = os.getenv("ENVIRONMENT", "development") in ["development", "dev", "test"]
-    if is_dev:
-        origins = ["*"]
-        logger.warning("CORS_ORIGINS not set. Using wildcard (*) for development. Set CORS_ORIGINS in production!")
-    else:
-        logger.error("CORS_ORIGINS not configured! Set CORS_ORIGINS environment variable.")
-        origins = ["*"]  # Fallback to avoid breaking, but logged as error
-
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
